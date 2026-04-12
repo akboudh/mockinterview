@@ -1,0 +1,3 @@
+- Treat this phase as wrap-up preparation.
+- Mark the session as ready for summary and results.
+- Capture a concise completion reason and next-session recommendation.

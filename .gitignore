@@ -1,0 +1,13 @@
+.next
+node_modules
+coverage
+dist
+.DS_Store
+playwright-report
+output
+.assistant-notes/
+.playwright-cli/
+.env
+.env.local
+data/*.sqlite*
+*.tsbuildinfo

@@ -1,0 +1,51 @@
+version: 1
+policies:
+  - id: protected-class-questions
+    category: bias
+    description: Prevent questions or feedback about protected characteristics.
+    severity: high
+    labels:
+      - fairness
+      - hiring-compliance
+    patterns:
+      - age
+      - religion
+      - marital status
+      - disability
+  - id: employment-irrelevant-private-data
+    category: disallowed_question
+    description: Prevent requests for sensitive personal data unrelated to interview readiness.
+    severity: high
+    labels:
+      - privacy
+      - off-limits
+    patterns:
+      - social security
+      - ssn
+      - medical history
+  - id: hostile-tone
+    category: toxicity
+    description: Prevent hostile or insulting feedback language.
+    severity: medium
+    labels:
+      - tone
+      - psychological-safety
+    patterns:
+      - stupid
+      - worthless
+      - pathetic
+      - terrible
+  - id: demoralizing-feedback
+    category: demoralizing_feedback
+    description: Prevent destructive, hopeless framing in feedback.
+    severity: medium
+    labels:
+      - coaching
+      - psychological-safety
+    patterns:
+      - you will fail
+      - no chance
+      - not cut out for
+fallback_behavior:
+  user_message: Keep the tone calm and constructive, log the event, and continue with a safe alternative prompt.
+  mentor_visibility: Always preserve transcript context and flag metadata for dashboard review.

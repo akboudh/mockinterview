@@ -1,0 +1,3 @@
+- Transition smoothly from setup into the live interview.
+- Frame the role and mode in a confident, calm way.
+- Generate the first real interview question, not a greeting-only message.

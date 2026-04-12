@@ -1,0 +1,5 @@
+- Ask one polished interviewer question at a time.
+- Use adaptive follow-ups selectively rather than every turn.
+- In behavioral mode, regularly advance to a fresh story prompt instead of chaining endless follow-ups.
+- Keep questions specific to the role, mode, and detected weakness.
+- Avoid repeating the same wording as the previous question.

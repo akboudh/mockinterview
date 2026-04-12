@@ -1,0 +1,886 @@
+openapi: 3.1.0
+info:
+  title: Vantage Mock Interview API
+  version: 1.0.0
+  description: >
+    MVP REST contract for the mock interview preparation agent. Memory endpoints are
+    authenticated and derive the acting user from the session cookie rather than the request body.
+    Mentor queue, mentor intervention, and mentor-scoped realtime endpoints require a mentor or
+    admin role.
+servers:
+  - url: http://localhost:3000
+paths:
+  /start_session:
+    post:
+      summary: Create a new interview session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSessionRequest'
+      responses:
+        '200':
+          description: Session initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartSessionResponse'
+  /ask_question:
+    post:
+      summary: Get the next interview question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AskQuestionRequest'
+      responses:
+        '200':
+          description: Next question
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AskQuestionResponse'
+  /evaluate_response:
+    post:
+      summary: Evaluate an answer with the selected rubric and persist the student message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluateResponseRequest'
+      responses:
+        '200':
+          description: Scorecard payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvaluateResponseResponse'
+  /memory/save_event:
+    post:
+      summary: Save a memory event for the authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveEventRequest'
+      responses:
+        '200':
+          description: Memory saved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaveEventResponse'
+  /memory/recall_context:
+    post:
+      summary: Recall personalization or short-term context with semantic retrieval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecallContextRequest'
+      responses:
+        '200':
+          description: Context items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecallContextResponse'
+  /memory/events:
+    get:
+      summary: List stored memory events for the authenticated user
+      parameters:
+        - in: query
+          name: session_id
+          required: false
+          schema:
+            type:
+              - string
+              - 'null'
+        - in: query
+          name: memory_tier
+          required: false
+          schema:
+            $ref: '#/components/schemas/MemoryTier'
+        - in: query
+          name: event_type
+          required: false
+          schema:
+            type:
+              - string
+              - 'null'
+        - in: query
+          name: mode
+          required: false
+          schema:
+            type:
+              - string
+              - 'null'
+            enum: [behavioral, technical, case, null]
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Memory list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListMemoriesResponse'
+  /memory/events/{eventId}:
+    patch:
+      summary: Update editable fields on a memory event
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemoryEventRequest'
+      responses:
+        '200':
+          description: Memory updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateMemoryEventResponse'
+    delete:
+      summary: Delete a memory event
+      parameters:
+        - in: path
+          name: eventId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Memory deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteMemoryEventResponse'
+  /session/{sessionId}/summary:
+    get:
+      summary: Get full session summary for results view
+      parameters:
+        - in: path
+          name: sessionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionSummary'
+  /sessions:
+    get:
+      summary: List sessions for the authenticated user
+      responses:
+        '200':
+          description: Historical sessions
+  /events/stream:
+    get:
+      summary: Open a realtime Server-Sent Events stream for session or mentor updates
+      parameters:
+        - in: query
+          name: scope
+          required: false
+          schema:
+            type: string
+            enum: [session, mentor]
+        - in: query
+          name: session_id
+          required: false
+          schema:
+            type:
+              - string
+              - 'null'
+      responses:
+        '200':
+          description: SSE stream of guardrail and mentor events
+  /flags:
+    get:
+      summary: List flagged sessions for mentor/admin review
+      responses:
+        '200':
+          description: Flag queue
+  /mentor/feedback:
+    post:
+      summary: Add supplemental mentor feedback as a mentor/admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MentorActionRequest'
+      responses:
+        '200':
+          description: Mentor intervention recorded
+  /mentor/takeover:
+    post:
+      summary: Record a mentor takeover as a mentor/admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MentorActionRequest'
+      responses:
+        '200':
+          description: Takeover recorded
+components:
+  schemas:
+    StartSessionRequest:
+      type: object
+      required:
+        - target_role
+        - mode
+        - personalization_enabled
+        - self_critique_enabled
+      properties:
+        target_role:
+          type: string
+        mode:
+          type: string
+          enum: [behavioral, technical, case]
+        focus_area:
+          type:
+            - string
+            - 'null'
+        confidence_self_rating:
+          type:
+            - number
+            - 'null'
+        personalization_enabled:
+          type: boolean
+        self_critique_enabled:
+          type: boolean
+        notes:
+          type:
+            - string
+            - 'null'
+    StartSessionResponse:
+      type: object
+      required:
+        - session_id
+        - status
+        - current_phase
+      properties:
+        session_id:
+          type: string
+        status:
+          type: string
+        recalled_context_summary:
+          type:
+            - string
+            - 'null'
+        current_phase:
+          $ref: '#/components/schemas/AgentPhase'
+    AskQuestionRequest:
+      type: object
+      required:
+        - session_id
+      properties:
+        session_id:
+          type: string
+        latest_answer:
+          type:
+            - string
+            - 'null'
+        context:
+          $ref: '#/components/schemas/AskQuestionContext'
+    AskQuestionContext:
+      type: object
+      required:
+        - mode
+        - target_role
+        - personalization_enabled
+        - self_critique_enabled
+        - session_status
+        - transcript
+        - current_phase
+        - turn_count
+        - weak_skills
+        - recalled_context_items
+      properties:
+        mode:
+          type: string
+          enum: [behavioral, technical, case]
+        target_role:
+          type: string
+        focus_area:
+          type:
+            - string
+            - 'null'
+        personalization_enabled:
+          type: boolean
+        self_critique_enabled:
+          type: boolean
+        resume_text:
+          type:
+            - string
+            - 'null'
+        recalled_context_summary:
+          type:
+            - string
+            - 'null'
+        session_status:
+          type: string
+          enum: [initialized, active, paused, completed, flagged]
+        transcript:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrchestratorTranscriptItem'
+        current_phase:
+          $ref: '#/components/schemas/AgentPhase'
+        previous_phase:
+          anyOf:
+            - $ref: '#/components/schemas/AgentPhase'
+            - type: 'null'
+        turn_count:
+          type: integer
+        redirect_count:
+          type: integer
+        turn_type:
+          $ref: '#/components/schemas/AgentTurnType'
+        conversation_summary:
+          type:
+            - string
+            - 'null'
+        weak_skills:
+          type: array
+          items:
+            type: string
+        recalled_context_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecalledContextItem'
+        flagged:
+          type: boolean
+        mentor_takeover_active:
+          type: boolean
+    OrchestratorTranscriptItem:
+      type: object
+      required:
+        - speaker_type
+        - content
+      properties:
+        speaker_type:
+          type: string
+          enum: [system, interviewer, student, mentor]
+        content:
+          type: string
+        question_type:
+          type:
+            - string
+            - 'null'
+          enum: [primary, follow_up, situational, clarifying, null]
+    RecalledContextItem:
+      type: object
+      required:
+        - memory_tier
+        - content
+        - relevance_reason
+      properties:
+        memory_tier:
+          type: string
+          enum: [short_term, episodic, long_term]
+        content:
+          type: object
+          additionalProperties: true
+        relevance_reason:
+          type: string
+    AskQuestionResponse:
+      type: object
+      required:
+        - session_id
+        - question_id
+        - question_text
+        - mode
+        - question_type
+        - current_phase
+        - turn_type
+        - phase_transitioned
+      properties:
+        session_id:
+          type: string
+        question_id:
+          type: string
+        question_text:
+          type: string
+        mode:
+          type: string
+          enum: [behavioral, technical, case]
+        question_type:
+          type: string
+          enum: [primary, follow_up, situational, clarifying]
+        context_notes:
+          type:
+            - string
+            - 'null'
+        current_phase:
+          $ref: '#/components/schemas/AgentPhase'
+        turn_type:
+          $ref: '#/components/schemas/AgentTurnType'
+        phase_transitioned:
+          type: boolean
+    EvaluateResponseRequest:
+      type: object
+      required:
+        - session_id
+        - question_text
+        - answer_text
+        - target_role
+        - mode
+        - self_critique_enabled
+      properties:
+        session_id:
+          type: string
+        question_text:
+          type: string
+        answer_text:
+          type: string
+        target_role:
+          type: string
+        mode:
+          type: string
+          enum: [behavioral, technical, case]
+        self_critique_enabled:
+          type: boolean
+    EvaluateResponseResponse:
+      type: object
+      required:
+        - evaluation_id
+        - scorecard
+      properties:
+        evaluation_id:
+          type: string
+        scorecard:
+          $ref: '#/components/schemas/EvaluationScorecard'
+    EvaluationScorecard:
+      type: object
+      required:
+        - clarity_score
+        - structure_score
+        - relevance_score
+        - soft_skills_score
+        - star
+        - overall_summary
+        - actionable_feedback
+        - growth_tips
+        - rubric_id
+        - rubric_match_type
+        - overall_score
+        - dimension_scores
+        - strengths
+        - weak_skills
+        - rubric_coverage
+      properties:
+        clarity_score:
+          type: integer
+        structure_score:
+          type: integer
+        relevance_score:
+          type: integer
+        soft_skills_score:
+          type: integer
+        star:
+          type: object
+          required:
+            - situation
+            - task
+            - action
+            - result
+          properties:
+            situation:
+              type: string
+            task:
+              type: string
+            action:
+              type: string
+            result:
+              type: string
+        overall_summary:
+          type: string
+        actionable_feedback:
+          type: array
+          items:
+            type: string
+        growth_tips:
+          type: array
+          items:
+            type: string
+        self_critique_output:
+          type:
+            - string
+            - 'null'
+        rubric_id:
+          type: string
+        rubric_match_type:
+          type: string
+          enum: [exact_role_mode, mode_default, global_default]
+        overall_score:
+          type: number
+        dimension_scores:
+          $ref: '#/components/schemas/EvaluationDimensionScores'
+        strengths:
+          type: array
+          items:
+            type: string
+        weak_skills:
+          type: array
+          items:
+            type: string
+        rubric_coverage:
+          $ref: '#/components/schemas/RubricCoverageAudit'
+    EvaluationDimensionScores:
+      type: object
+      required:
+        - clarity
+        - structure
+        - relevance
+        - soft_skills
+      properties:
+        clarity:
+          type: integer
+        structure:
+          type: integer
+        relevance:
+          type: integer
+        soft_skills:
+          type: integer
+    RubricCoverageAudit:
+      type: object
+      required:
+        - required_dimensions_checked
+        - missing_dimensions
+        - star_fields_checked
+        - missing_star_fields
+        - uncovered_feedback_areas
+        - completeness_score
+      properties:
+        required_dimensions_checked:
+          type: array
+          items:
+            type: string
+            enum: [clarity, structure, relevance, soft_skills]
+        missing_dimensions:
+          type: array
+          items:
+            type: string
+            enum: [clarity, structure, relevance, soft_skills]
+        star_fields_checked:
+          type: array
+          items:
+            type: string
+            enum: [situation, task, action, result]
+        missing_star_fields:
+          type: array
+          items:
+            type: string
+            enum: [situation, task, action, result]
+        uncovered_feedback_areas:
+          type: array
+          items:
+            type: string
+            enum: [clarity, structure, relevance, soft_skills]
+        completeness_score:
+          type: integer
+    SaveEventRequest:
+      type: object
+      required:
+        - session_id
+        - memory_tier
+        - event_type
+        - content
+      properties:
+        session_id:
+          type: string
+        memory_tier:
+          $ref: '#/components/schemas/MemoryTier'
+        event_type:
+          type: string
+        content:
+          type: object
+          additionalProperties: true
+    SaveEventResponse:
+      type: object
+      required:
+        - success
+        - event_id
+      properties:
+        success:
+          type: boolean
+        event_id:
+          type: string
+    RecallContextRequest:
+      type: object
+      required:
+        - query_type
+      properties:
+        session_id:
+          type:
+            - string
+            - 'null'
+        query_type:
+          type: string
+          enum: [short_term, episodic, long_term, mixed]
+        query_text:
+          type:
+            - string
+            - 'null'
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 20
+        mode:
+          type:
+            - string
+            - 'null'
+          enum: [behavioral, technical, case, null]
+    RecallContextResponse:
+      type: object
+      required:
+        - context_items
+        - weak_skills
+      properties:
+        context_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecalledContextItem'
+        weak_skills:
+          type: array
+          items:
+            type: string
+    MemoryTier:
+      type: string
+      enum: [short_term, episodic, long_term]
+    MemoryEventItem:
+      type: object
+      required:
+        - event_id
+        - session_id
+        - user_id
+        - memory_tier
+        - event_type
+        - content
+        - created_at
+        - has_vector
+      properties:
+        event_id:
+          type: string
+        session_id:
+          type: string
+        user_id:
+          type: string
+        memory_tier:
+          $ref: '#/components/schemas/MemoryTier'
+        event_type:
+          type: string
+        content:
+          type: object
+          additionalProperties: true
+        embedding_ref:
+          type:
+            - string
+            - 'null'
+        created_at:
+          type: string
+        updated_at:
+          type:
+            - string
+            - 'null'
+        mode:
+          type:
+            - string
+            - 'null'
+          enum: [behavioral, technical, case, null]
+        target_role:
+          type:
+            - string
+            - 'null'
+        focus_area:
+          type:
+            - string
+            - 'null'
+        has_vector:
+          type: boolean
+    ListMemoriesResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryEventItem'
+    UpdateMemoryEventRequest:
+      type: object
+      properties:
+        memory_tier:
+          $ref: '#/components/schemas/MemoryTier'
+        event_type:
+          type: string
+        content:
+          type: object
+          additionalProperties: true
+    UpdateMemoryEventResponse:
+      type: object
+      required:
+        - success
+        - memory
+      properties:
+        success:
+          type: boolean
+        memory:
+          $ref: '#/components/schemas/MemoryEventItem'
+    DeleteMemoryEventResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+    MentorActionRequest:
+      type: object
+      required:
+        - session_id
+        - mentor_message
+      properties:
+        session_id:
+          type: string
+        mentor_message:
+          type: string
+    RealtimeEventEnvelope:
+      type: object
+      required:
+        - event_id
+        - type
+        - created_at
+        - audience
+        - payload
+      properties:
+        event_id:
+          type: string
+        type:
+          type: string
+          enum:
+            - stream.connected
+            - session.flag.created
+            - session.flag.reviewed
+            - session.mentor.feedback
+            - session.mentor.takeover
+        session_id:
+          type:
+            - string
+            - 'null'
+        user_id:
+          type:
+            - string
+            - 'null'
+        created_at:
+          type: string
+        audience:
+          type: string
+          enum: [session, mentor]
+        payload:
+          type: object
+          additionalProperties: true
+    AgentPhase:
+      type: string
+      enum:
+        - interview_setup
+        - opening
+        - interview_round
+        - deep_dive
+        - session_feedback
+        - mentor_review
+    AgentTurnType:
+      type: string
+      enum:
+        - first_turn
+        - standard
+        - phase_transition
+        - termination
+    SessionRuntime:
+      type: object
+      required:
+        - current_phase
+        - turn_count
+        - turn_type
+        - flagged
+        - mentor_takeover_active
+      properties:
+        current_phase:
+          $ref: '#/components/schemas/AgentPhase'
+        turn_count:
+          type: integer
+        turn_type:
+          $ref: '#/components/schemas/AgentTurnType'
+        flagged:
+          type: boolean
+        mentor_takeover_active:
+          type: boolean
+        conversation_summary:
+          type:
+            - string
+            - 'null'
+    SessionSummary:
+      type: object
+      required:
+        - session
+        - transcript
+        - evaluations
+        - strengths
+        - improvement_areas
+        - next_session_recommendation
+        - flags
+        - mentor_interventions
+        - agent_runtime
+      properties:
+        session:
+          type: object
+        transcript:
+          type: array
+          items:
+            type: object
+        evaluations:
+          type: array
+          items:
+            type: object
+        strengths:
+          type: array
+          items:
+            type: string
+        improvement_areas:
+          type: array
+          items:
+            type: string
+        next_session_recommendation:
+          type: string
+        flags:
+          type: array
+          items:
+            type: object
+        mentor_interventions:
+          type: array
+          items:
+            type: object
+        agent_runtime:
+          $ref: '#/components/schemas/SessionRuntime'

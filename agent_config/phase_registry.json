@@ -1,0 +1,73 @@
+{
+  "version": "1.0",
+  "default_phase": "interview_setup",
+  "phases": {
+    "interview_setup": {
+      "display_name": "Interview Setup",
+      "purpose": "Capture the student's role, mode, focus, and session preferences before the interview begins.",
+      "allowed_targets": ["opening"],
+      "conditions": {
+        "opening": "all_required_complete"
+      },
+      "max_turns": 1,
+      "auto_advance": true,
+      "order": 1
+    },
+    "opening": {
+      "display_name": "Opening",
+      "purpose": "Set interview tone, frame the target role, and ask the first substantive question.",
+      "allowed_targets": ["interview_round", "deep_dive"],
+      "conditions": {
+        "interview_round": "all_required_complete",
+        "deep_dive": "user_requests_advance"
+      },
+      "max_turns": 2,
+      "auto_advance": true,
+      "order": 2
+    },
+    "interview_round": {
+      "display_name": "Interview Round",
+      "purpose": "Run the main adaptive mock interview loop with role-aware and mode-aware questions.",
+      "allowed_targets": ["deep_dive", "session_feedback"],
+      "conditions": {
+        "deep_dive": "user_requests_advance",
+        "session_feedback": "max_turns_exceeded"
+      },
+      "max_turns": 5,
+      "auto_advance": false,
+      "order": 3
+    },
+    "deep_dive": {
+      "display_name": "Deep Dive",
+      "purpose": "Probe missing evidence, weak structure, unclear tradeoffs, or situational reasoning gaps.",
+      "allowed_targets": ["interview_round", "session_feedback"],
+      "conditions": {
+        "interview_round": "always",
+        "session_feedback": "max_turns_exceeded"
+      },
+      "max_turns": 5,
+      "auto_advance": false,
+      "order": 4
+    },
+    "session_feedback": {
+      "display_name": "Session Feedback",
+      "purpose": "Prepare the session wrap-up and ensure the student can move to the results view with clear next steps.",
+      "allowed_targets": [],
+      "conditions": {},
+      "max_turns": 1,
+      "auto_advance": false,
+      "order": 5
+    },
+    "mentor_review": {
+      "display_name": "Mentor Review",
+      "purpose": "Represent mentor-side review and intervention state for flagged sessions and takeovers.",
+      "allowed_targets": ["session_feedback"],
+      "conditions": {
+        "session_feedback": "always"
+      },
+      "max_turns": null,
+      "auto_advance": false,
+      "order": 6
+    }
+  }
+}

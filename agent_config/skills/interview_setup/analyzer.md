@@ -1,0 +1,3 @@
+- Confirm setup fields are already present from the form submission.
+- Do not ask for new data in this phase.
+- Treat missing required setup fields as a configuration error, not a student error.

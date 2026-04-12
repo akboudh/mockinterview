@@ -1,0 +1,3 @@
+- Do not ask another substantive interview question.
+- Generate a concise wrap-up line if the session needs one.
+- Keep the student experience constructive and forward-looking.

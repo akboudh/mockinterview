@@ -1,0 +1,175 @@
+version: 2
+global_default:
+  rubric_id: global.default
+  description: Fallback rubric for clear, structured, relevant, and supportive interview answers.
+  role_context: []
+  feedback_priorities:
+    - structure
+    - relevance
+    - clarity
+    - soft_skills
+  weak_skill_threshold: 3
+  strength_skill_threshold: 4
+  criteria:
+    clarity:
+      label: Clarity
+      scale: 1-5
+      evaluator_prompt: Assess whether the answer is easy to follow and concise.
+      weak_skill_label: clear communication
+      strength_skill_label: clear communication
+    structure:
+      label: Structure
+      scale: 1-5
+      evaluator_prompt: Assess whether the answer follows an explicit logical sequence.
+      weak_skill_label: story structure
+      strength_skill_label: structured thinking
+    relevance:
+      label: Relevance
+      scale: 1-5
+      evaluator_prompt: Assess whether the answer addresses the interview prompt directly.
+      weak_skill_label: answer relevance
+      strength_skill_label: focused answers
+    soft_skills:
+      label: Soft skills
+      scale: 1-5
+      evaluator_prompt: Assess collaboration, ownership, empathy, and communication quality.
+      weak_skill_label: collaborative communication
+      strength_skill_label: collaborative communication
+  star_fields:
+    - situation
+    - task
+    - action
+    - result
+library:
+  behavioral:
+    rubric_id: behavioral.default
+    description: STAR-focused rubric for communication-heavy interview answers.
+    role_context:
+      - Product Manager Intern
+      - Business Analyst Intern
+      - Operations Intern
+    feedback_priorities:
+      - structure
+      - relevance
+      - clarity
+      - soft_skills
+    weak_skill_threshold: 3
+    strength_skill_threshold: 4
+    criteria:
+      clarity:
+        label: Clarity
+        scale: 1-5
+        evaluator_prompt: Assess whether the answer is easy to follow and concise.
+        weak_skill_label: clear communication
+        strength_skill_label: clear communication
+      structure:
+        label: Structure
+        scale: 1-5
+        evaluator_prompt: Assess whether the answer uses a coherent flow and clearly signals STAR.
+        weak_skill_label: story structure
+        strength_skill_label: structured storytelling
+      relevance:
+        label: Relevance
+        scale: 1-5
+        evaluator_prompt: Assess whether the answer directly addresses the question and target role.
+        weak_skill_label: role alignment
+        strength_skill_label: role-aligned examples
+      soft_skills:
+        label: Soft skills
+        scale: 1-5
+        evaluator_prompt: Assess communication, empathy, ownership, and collaboration.
+        weak_skill_label: collaborative communication
+        strength_skill_label: collaborative communication
+    star_fields:
+      - situation
+      - task
+      - action
+      - result
+  technical:
+    rubric_id: technical.default
+    description: Rubric for engineering reasoning and tradeoff communication.
+    role_context:
+      - Software Engineer Intern
+      - Data Engineer Intern
+      - Platform Engineer Intern
+    feedback_priorities:
+      - relevance
+      - structure
+      - clarity
+      - soft_skills
+    weak_skill_threshold: 3
+    strength_skill_threshold: 4
+    criteria:
+      clarity:
+        label: Clarity
+        scale: 1-5
+        evaluator_prompt: Assess organization and terminology clarity.
+        weak_skill_label: technical communication
+        strength_skill_label: technical clarity
+      structure:
+        label: Structure
+        scale: 1-5
+        evaluator_prompt: Assess whether the answer moves logically from requirements to design to tradeoffs.
+        weak_skill_label: solution structure
+        strength_skill_label: systematic reasoning
+      relevance:
+        label: Relevance
+        scale: 1-5
+        evaluator_prompt: Assess whether the answer fits the technical prompt and role.
+        weak_skill_label: tradeoff articulation
+        strength_skill_label: tradeoff communication
+      soft_skills:
+        label: Soft skills
+        scale: 1-5
+        evaluator_prompt: Assess communication quality, calmness, and collaboration signals.
+        weak_skill_label: collaborative communication
+        strength_skill_label: collaborative communication
+    star_fields:
+      - situation
+      - task
+      - action
+      - result
+  case:
+    rubric_id: case.default
+    description: Rubric for structured problem solving and synthesis.
+    role_context:
+      - Strategy Analyst Intern
+      - Product Manager Intern
+      - Consulting Candidate
+    feedback_priorities:
+      - structure
+      - relevance
+      - clarity
+      - soft_skills
+    weak_skill_threshold: 3
+    strength_skill_threshold: 4
+    criteria:
+      clarity:
+        label: Clarity
+        scale: 1-5
+        evaluator_prompt: Assess whether the candidate frames the problem cleanly.
+        weak_skill_label: executive communication
+        strength_skill_label: executive clarity
+      structure:
+        label: Structure
+        scale: 1-5
+        evaluator_prompt: Assess whether the candidate organizes assumptions, prioritization, and recommendation.
+        weak_skill_label: problem framing
+        strength_skill_label: structured problem solving
+      relevance:
+        label: Relevance
+        scale: 1-5
+        evaluator_prompt: Assess whether the candidate keeps the response tied to the stated objective.
+        weak_skill_label: recommendation alignment
+        strength_skill_label: goal-focused synthesis
+      soft_skills:
+        label: Soft skills
+        scale: 1-5
+        evaluator_prompt: Assess executive communication, judgment, and confidence.
+        weak_skill_label: stakeholder communication
+        strength_skill_label: stakeholder communication
+    star_fields:
+      - situation
+      - task
+      - action
+      - result

@@ -1,0 +1,3 @@
+- This phase is mentor-side only.
+- Capture why the session was flagged and whether takeover is active.
+- Do not generate student-facing questioning from this phase.

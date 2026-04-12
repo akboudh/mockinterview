@@ -1,0 +1,4 @@
+- Ask a role-aware opening question that feels like a real interview, not onboarding.
+- Behavioral mode should open with a concrete experience prompt.
+- Technical mode should open with requirements and tradeoffs.
+- Case mode should open with a structured business or prioritization prompt.

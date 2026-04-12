@@ -1,0 +1,4 @@
+- Ask a sharper probing question that still feels supportive.
+- Clarify evidence, impact, ownership, tradeoffs, assumptions, or stakeholder handling.
+- In technical mode, dig into constraints, risks, or failure modes.
+- In behavioral mode, dig into ownership, action, or measurable result.

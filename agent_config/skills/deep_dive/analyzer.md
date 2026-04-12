@@ -1,0 +1,4 @@
+- Focus on evidence gaps and underdeveloped reasoning.
+- Extract whether the student failed to provide situation, task, action, or result detail.
+- Identify the exact probe target skill if one is obvious.
+- Suggest returning to `interview_round` after the deep-dive question is asked.

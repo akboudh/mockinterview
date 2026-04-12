@@ -1,0 +1,4 @@
+- Determine whether the student's first answer establishes a usable baseline.
+- Extract answer quality, STAR coverage, and the first major missing signal.
+- Suggest `deep_dive` if the answer is thin or lacks a clear result.
+- Suggest `interview_round` if the answer is already strong enough to continue normally.

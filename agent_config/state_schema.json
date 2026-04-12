@@ -1,0 +1,217 @@
+{
+  "version": "1.0",
+  "phases": {
+    "interview_setup": {
+      "target_role": {
+        "type": "string",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Target role",
+        "description": "The internship or job role the student is practicing for."
+      },
+      "mode": {
+        "type": "enum: behavioral | technical | case",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Interview mode",
+        "description": "The interview mode selected for the session."
+      },
+      "focus_area": {
+        "type": "string",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Focus area",
+        "description": "The optional practice focus for this session."
+      },
+      "confidence_self_rating": {
+        "type": "integer",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Confidence rating",
+        "description": "The student's self-reported confidence before starting."
+      },
+      "notes": {
+        "type": "string",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Session notes",
+        "description": "Optional setup notes that should influence the interview."
+      },
+      "personalization_enabled": {
+        "type": "boolean",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Personalization enabled",
+        "description": "Whether prior context should influence the session."
+      },
+      "self_critique_enabled": {
+        "type": "boolean",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Self-critique enabled",
+        "description": "Whether evaluator self-critique should be included."
+      },
+      "recalled_context_summary": {
+        "type": "string",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Recalled context",
+        "description": "A concise memory summary used to personalize the session."
+      }
+    },
+    "opening": {
+      "opening_question_prepared": {
+        "type": "boolean",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Opening question prepared",
+        "description": "Whether the system has prepared the opening interviewer question."
+      },
+      "interview_objective": {
+        "type": "string",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Interview objective",
+        "description": "The high-level goal of the session."
+      },
+      "role_framing": {
+        "type": "string",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Role framing",
+        "description": "How the interview should frame the target role and expectations."
+      }
+    },
+    "interview_round": {
+      "active_question": {
+        "type": "string",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Active question",
+        "description": "The current interviewer question."
+      },
+      "question_count": {
+        "type": "integer",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Question count",
+        "description": "How many interviewer questions have been asked so far."
+      },
+      "question_type": {
+        "type": "enum: primary | follow_up | situational | clarifying",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Question type",
+        "description": "The current question classification."
+      },
+      "latest_answer_quality": {
+        "type": "enum: limited | solid | strong",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Latest answer quality",
+        "description": "A compact quality judgment about the most recent answer."
+      },
+      "uncovered_gaps": {
+        "type": "string[]",
+        "required": false,
+        "update_policy": "append",
+        "default": [],
+        "display_name": "Uncovered gaps",
+        "description": "Important evidence gaps or follow-up targets still missing from the answer."
+      }
+    },
+    "deep_dive": {
+      "follow_up_reason": {
+        "type": "string",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Follow-up reason",
+        "description": "Why the system is probing further."
+      },
+      "probe_target_skill": {
+        "type": "string",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Probe target skill",
+        "description": "The skill or evidence gap currently being tested."
+      },
+      "clarifying_needs": {
+        "type": "string[]",
+        "required": false,
+        "update_policy": "append",
+        "default": [],
+        "display_name": "Clarifying needs",
+        "description": "Specific details the interviewer still needs from the student."
+      },
+      "situational_escalation_signal": {
+        "type": "boolean",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Situational escalation",
+        "description": "Whether the follow-up should become more situational or stress-test oriented."
+      }
+    },
+    "session_feedback": {
+      "completion_reason": {
+        "type": "string",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Completion reason",
+        "description": "Why the session concluded."
+      },
+      "summary_ready": {
+        "type": "boolean",
+        "required": true,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Summary ready",
+        "description": "Whether the results and wrap-up artifacts are ready."
+      },
+      "next_session_recommendation": {
+        "type": "string",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Next-session recommendation",
+        "description": "The most important recommendation for the student's next practice session."
+      }
+    },
+    "mentor_review": {
+      "flag_reason": {
+        "type": "string",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Flag reason",
+        "description": "Why a session was surfaced for mentor review."
+      },
+      "takeover_active": {
+        "type": "boolean",
+        "required": false,
+        "update_policy": "overwrite",
+        "default": null,
+        "display_name": "Takeover active",
+        "description": "Whether a mentor takeover is currently active."
+      }
+    }
+  }
+}

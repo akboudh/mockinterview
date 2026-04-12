@@ -1,0 +1,2 @@
+- This phase should not generate student-facing interview questions.
+- If surfaced in runtime state, prefer neutral status messaging only.

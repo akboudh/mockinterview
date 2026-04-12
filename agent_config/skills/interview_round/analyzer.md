@@ -1,0 +1,5 @@
+- Read the latest answer and identify the strongest follow-up opportunity.
+- Extract missing signals such as absent metrics, weak ownership, vague tradeoffs, or unclear outcomes.
+- Prefer `deep_dive` only when the last answer is thin enough that moving on would waste the session.
+- In behavioral mode, default to moving to a new question after a solid answer instead of probing every gap.
+- Prefer staying in `interview_round` when the answer is solid and the interview should progress.

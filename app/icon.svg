@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="vantageGradient" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#b8e7ff" />
+      <stop offset="55%" stop-color="#7fcfff" />
+      <stop offset="100%" stop-color="#ff9b7c" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="#07101a" />
+  <path
+    d="M17 18h10l5 10 5-10h10L37 46h-10L17 18Z"
+    fill="url(#vantageGradient)"
+  />
+</svg>
