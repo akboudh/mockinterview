@@ -1,7 +1,6 @@
 import {
   addMentorFeedback,
-  markFlagReviewed,
-  takeOverSession
+  markFlagReviewed
 } from "@/lib/services/mentor-service";
 import type { MockInterviewDB } from "@/lib/types";
 
@@ -60,6 +59,7 @@ function makeDb(): MockInterviewDB {
       }
     ],
     mentorInterventions: [],
+    mentorDirectMessages: [],
     agentSessionStates: [
       {
         session_id: "sess-mentor",
@@ -143,57 +143,6 @@ describe("mentor service unit", () => {
     expect(publishRealtimeEventMock).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "session.mentor.feedback",
-        audience: "mentor"
-      })
-    );
-  });
-
-  it("records mentor takeover, pauses the session, and emits live events", async () => {
-    let currentDb = makeDb();
-    const publishRealtimeEventMock = vi.fn();
-    const ids = ["takeover-1", "event-1", "event-2"];
-
-    const takeover = await takeOverSession(
-      {
-        session_id: "sess-mentor",
-        mentor_message: "Pausing the session now. I want to redirect the student toward a safer prompt."
-      },
-      {
-        readDb: async () => currentDb,
-        updateDb: async (updater) => {
-          currentDb = await updater(currentDb);
-          return currentDb;
-        },
-        saveEvent: async (params) => ({
-          event_id: "mem-takeover",
-          session_id: params.session_id,
-          user_id: params.user_id,
-          memory_tier: params.memory_tier,
-          event_type: params.event_type,
-          content: params.content,
-          embedding_ref: null,
-          created_at: "2026-04-06T09:11:00.000Z",
-          updated_at: "2026-04-06T09:11:00.000Z"
-        }),
-        publishRealtimeEvent: publishRealtimeEventMock,
-        now: () => "2026-04-06T09:11:00.000Z",
-        randomUUID: () => ids.shift() ?? "fallback-id"
-      }
-    );
-
-    expect(takeover.intervention_type).toBe("takeover");
-    expect(currentDb.sessions[0]?.status).toBe("paused");
-    expect(currentDb.agentSessionStates[0]?.current_phase).toBe("mentor_review");
-    expect(currentDb.agentSessionStates[0]?.mentor_takeover_active).toBe(true);
-    expect(publishRealtimeEventMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "session.mentor.takeover",
-        audience: "session"
-      })
-    );
-    expect(publishRealtimeEventMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "session.mentor.takeover",
         audience: "mentor"
       })
     );

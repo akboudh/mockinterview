@@ -65,7 +65,7 @@ export function FlagDetailClient({
             <FlagBadge label={flag.flag_category} />
             <FlagBadge label={flag.status} />
           </div>
-          <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
+          <h1 className="mt-4 font-display text-3xl font-semibold tracking-[-0.04em] text-white">
             Flagged session detail
           </h1>
           <p className="mt-3 max-w-2xl text-white/64">{flag.flag_reason}</p>

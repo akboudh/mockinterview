@@ -1,18 +1,8 @@
-import { readFileSync } from "fs";
-import path from "path";
-
 import { writeDb } from "@/lib/db";
-import type { MockInterviewDB } from "@/lib/types";
+import { generateSyntheticMemoryDataset } from "@/lib/memory/synthetic-data";
 
-const seedPath = path.join(process.cwd(), "data/mock-db.json");
-const seedContents = readFileSync(seedPath, "utf-8");
-
+/** Resets the DB file Vitest uses (`data/vitest.sqlite` via `DATABASE_URL` in vitest.config). */
 export async function resetDb() {
-  const parsed = JSON.parse(seedContents) as MockInterviewDB;
-  await writeDb({
-    ...parsed,
-    agentSessionStates: parsed.agentSessionStates ?? [],
-    conversationSummaries: parsed.conversationSummaries ?? [],
-    memoryVectors: parsed.memoryVectors ?? []
-  });
+  const parsed = await generateSyntheticMemoryDataset(new Date("2026-04-06T00:00:00.000Z"));
+  await writeDb(parsed);
 }

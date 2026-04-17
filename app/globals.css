@@ -5,8 +5,9 @@
 :root {
   color-scheme: dark;
   --bg: #07101a;
-  --surface: rgba(10, 20, 34, 0.72);
-  --surface-soft: rgba(16, 29, 46, 0.56);
+  --bg-deep: #040913;
+  --surface: rgba(10, 20, 34, 0.76);
+  --surface-soft: rgba(16, 29, 46, 0.58);
   --surface-light: rgba(214, 224, 232, 0.74);
   --border: rgba(143, 177, 212, 0.2);
   --text: #f4fbff;
@@ -25,16 +26,23 @@ html {
   scroll-behavior: smooth;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 14% 18%, rgba(121, 199, 255, 0.14), transparent 26%),
-    radial-gradient(circle at 84% 12%, rgba(255, 132, 97, 0.1), transparent 24%),
-    radial-gradient(circle at 50% 115%, rgba(84, 107, 129, 0.12), transparent 34%),
-    linear-gradient(180deg, #07101a 0%, #091320 26%, #0c1724 48%, #0f1b29 68%, #111b29 84%, #0d1521 100%);
+    radial-gradient(circle at 12% 14%, rgba(121, 199, 255, 0.16), transparent 24%),
+    radial-gradient(circle at 88% 10%, rgba(255, 132, 97, 0.12), transparent 22%),
+    radial-gradient(circle at 50% 52%, rgba(84, 107, 129, 0.1), transparent 34%),
+    radial-gradient(circle at 50% 120%, rgba(110, 157, 197, 0.11), transparent 28%),
+    linear-gradient(180deg, #040913 0%, #07101a 18%, #091320 36%, #0c1724 56%, #0e1826 74%, #0a121e 100%);
   color: var(--text);
-  font-family: "Sora", "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
 a {
@@ -66,17 +74,56 @@ textarea {
   opacity: 0.42;
 }
 
+.noise-overlay::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at top, rgba(121, 199, 255, 0.08), transparent 42%),
+    radial-gradient(circle at 82% 18%, rgba(255, 132, 97, 0.06), transparent 24%);
+  opacity: 0.9;
+}
+
 .premium-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
+    radial-gradient(circle at top left, rgba(121, 199, 255, 0.08), transparent 34%);
   backdrop-filter: blur(18px);
-  box-shadow: 0 24px 80px rgba(6, 14, 26, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 24px 80px rgba(6, 14, 26, 0.22);
 }
 
 .light-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   border: 1px solid rgba(17, 33, 52, 0.12);
   background: linear-gradient(180deg, rgba(230, 237, 242, 0.8), rgba(206, 217, 226, 0.74));
   box-shadow: 0 22px 54px rgba(8, 19, 36, 0.1);
+}
+
+.premium-panel::before,
+.light-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.08), transparent 32%, transparent 70%, rgba(255, 255, 255, 0.03));
+  opacity: 0.6;
+}
+
+/* Stack in-flow content above ::before. Do not override Tailwind `absolute` / `fixed`
+   (`.premium-panel > *` is more specific than `.absolute` and was forcing overlays into flow). */
+.premium-panel > *:where(:not(.absolute):not(.fixed)),
+.light-panel > *:where(:not(.absolute):not(.fixed)) {
+  position: relative;
+  z-index: 1;
 }
 
 .grid-fade {
@@ -92,6 +139,34 @@ textarea {
   margin: 0 auto;
 }
 
+.page-shell-wide {
+  width: min(1280px, calc(100vw - 1.5rem));
+}
+
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.02));
+}
+
+.hero-glow {
+  background:
+    radial-gradient(circle at top left, rgba(121, 199, 255, 0.22), transparent 26%),
+    radial-gradient(circle at 82% 18%, rgba(255, 132, 97, 0.16), transparent 20%);
+}
+
+.panel-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.eyebrow-copy {
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
 .field {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.22);
@@ -101,6 +176,16 @@ textarea {
   border-radius: 1rem;
   outline: none;
   transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
+}
+
+.field,
+select.field,
+textarea.field {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+.field:hover {
+  border-color: rgba(148, 163, 184, 0.32);
 }
 
 .field::placeholder {
@@ -113,6 +198,17 @@ textarea {
   transform: translateY(-1px);
 }
 
+.field:focus-visible {
+  outline: 2px solid rgba(142, 209, 255, 0.55);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field:focus {
+    transform: none;
+  }
+}
+
 .field-light {
   background: rgba(247, 250, 252, 0.64);
   color: var(--text-dark);
@@ -120,4 +216,14 @@ textarea {
 
 .field-light::placeholder {
   color: rgba(20, 34, 54, 0.44);
+}
+
+@media (max-width: 768px) {
+  .page-shell {
+    width: min(100vw - 1rem, 1200px);
+  }
+
+  .page-shell-wide {
+    width: min(100vw - 1rem, 1280px);
+  }
 }

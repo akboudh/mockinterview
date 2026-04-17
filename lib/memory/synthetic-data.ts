@@ -393,6 +393,7 @@ export async function generateSyntheticMemoryDataset(now = new Date()) {
     skillSignals,
     flags: [],
     mentorInterventions: [],
+    mentorDirectMessages: [],
     agentSessionStates,
     conversationSummaries: sessions.map((session) => ({
       summary_id: `${session.session_id}-summary`,

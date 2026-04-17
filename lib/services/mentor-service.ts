@@ -1,7 +1,9 @@
+import { incrementalAppendTranscriptMessage } from "@/lib/db-incremental";
 import { readDb, updateDb } from "@/lib/db";
 import { logEvent } from "@/lib/logging";
 import { publishRealtimeEvent } from "@/lib/realtime/event-bus";
 import { saveEvent } from "@/lib/services/memory-service";
+import type { AgentSessionState, Message } from "@/lib/types";
 
 interface MentorServiceDeps {
   readDb: typeof readDb;
@@ -147,78 +149,7 @@ export async function takeOverSession(params: {
   session_id: string;
   mentor_message: string;
 }, deps: Partial<MentorServiceDeps> = {}) {
-  const resolvedDeps = withMentorDeps(deps);
-  const createdAt = resolvedDeps.now();
-  const takeover = {
-    intervention_id: resolvedDeps.randomUUID(),
-    session_id: params.session_id,
-    mentor_message: params.mentor_message,
-    intervention_type: "takeover" as const,
-    created_at: createdAt
-  };
-
-  await resolvedDeps.updateDb((db) => ({
-    ...db,
-    mentorInterventions: [...db.mentorInterventions, takeover],
-    sessions: db.sessions.map((session) =>
-      session.session_id === params.session_id ? { ...session, status: "paused" } : session
-    ),
-    agentSessionStates: db.agentSessionStates.map((state) =>
-      state.session_id === params.session_id
-        ? {
-            ...state,
-            previous_phase: state.current_phase,
-            current_phase: "mentor_review",
-            mentor_takeover_active: true,
-            turn_type: "phase_transition",
-            updated_at: createdAt,
-            state_json: {
-              ...state.state_json,
-              mentor_takeover_message: params.mentor_message
-            }
-          }
-        : state
-    )
-  }));
-
-  const db = await resolvedDeps.readDb();
-  const userId =
-    db.sessions.find((session) => session.session_id === params.session_id)?.user_id ??
-    "demo-student";
-
-  await resolvedDeps.saveEvent({
-    session_id: params.session_id,
-    user_id: userId,
-    memory_tier: "episodic",
-    event_type: "mentor_takeover",
-    content: takeover
-  });
-
-  resolvedDeps.publishRealtimeEvent({
-    event_id: resolvedDeps.randomUUID(),
-    type: "session.mentor.takeover",
-    session_id: params.session_id,
-    user_id: userId,
-    audience: "session",
-    created_at: resolvedDeps.now(),
-    payload: takeover
-  });
-  resolvedDeps.publishRealtimeEvent({
-    event_id: resolvedDeps.randomUUID(),
-    type: "session.mentor.takeover",
-    session_id: params.session_id,
-    user_id: userId,
-    audience: "mentor",
-    created_at: resolvedDeps.now(),
-    payload: takeover
-  });
-
-  logEvent("mentor.takeover.started", {
-    session_id: params.session_id,
-    intervention_id: takeover.intervention_id
-  });
-
-  return takeover;
+  throw new Error("Live takeover has been removed.");
 }
 
 export async function markFlagReviewed(
@@ -281,4 +212,82 @@ export async function markFlagReviewed(
       flag_id: targetFlag.flag_id
     });
   }
+}
+
+export async function listAllUsersForMentorDashboard() {
+  const db = await readDb();
+  return db.users
+    .map((u) => ({
+      user_id: u.user_id,
+      display_name: u.display_name ?? u.email?.split("@")[0] ?? "User",
+      email: u.email ?? null,
+      roles: u.roles ?? [],
+      session_count: db.sessions.filter((s) => s.user_id === u.user_id).length,
+      open_flags: db.flags.filter((f) => {
+        const s = db.sessions.find((ss) => ss.session_id === f.session_id);
+        return s?.user_id === u.user_id && f.status === "open";
+      }).length
+    }))
+    .sort((a, b) => a.display_name.localeCompare(b.display_name));
+}
+
+export async function getStudentSessionsForMentor(userId: string) {
+  const db = await readDb();
+  const user = db.users.find((u) => u.user_id === userId);
+  if (!user) {
+    throw new Error("User not found.");
+  }
+
+  return db.sessions
+    .filter((s) => s.user_id === userId)
+    .sort(
+      (left, right) =>
+        new Date(right.started_at).getTime() - new Date(left.started_at).getTime()
+    )
+    .map((session) => {
+      const runtime = db.agentSessionStates.find((st) => st.session_id === session.session_id);
+      const flagsForSession = db.flags.filter((f) => f.session_id === session.session_id);
+      return {
+        session,
+        current_phase: runtime?.current_phase ?? "interview_setup",
+        mentor_takeover_active: false,
+        has_open_flags: flagsForSession.some((f) => f.status === "open"),
+        flag_count: flagsForSession.length
+      };
+    });
+}
+
+export async function getSessionDetailForMentor(sessionId: string) {
+  const db = await readDb();
+  const session = db.sessions.find((s) => s.session_id === sessionId);
+  if (!session) {
+    throw new Error("Session not found.");
+  }
+
+  const user = db.users.find((u) => u.user_id === session.user_id);
+  const transcript = db.messages
+    .filter((m) => m.session_id === sessionId)
+    .sort((a, b) => a.message_order - b.message_order);
+  const flags = db.flags.filter((f) => f.session_id === sessionId);
+  const interventions = db.mentorInterventions.filter((i) => i.session_id === sessionId);
+  const runtime = db.agentSessionStates.find((s) => s.session_id === sessionId);
+
+  return {
+    session,
+    student: user ?? null,
+    transcript,
+    flags,
+    interventions,
+    runtime: runtime ?? null
+  };
+}
+
+export async function sendMentorLiveChatMessage(params: {
+  session_id: string;
+  mentor_user_id: string;
+  content: string;
+}, deps: Partial<MentorServiceDeps> = {}) {
+  void params;
+  void deps;
+  throw new Error("Live mentor chat has been removed.");
 }

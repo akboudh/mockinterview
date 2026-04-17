@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
+  accountKindFromUser,
   applySessionCookie,
   authJsonError,
   createAuthSession,
   createUserAccount,
   getUserRoles
 } from "@/lib/auth";
-import { logEvent } from "@/lib/logging";
+import { logEvent, requestIdFromRequest } from "@/lib/logging";
+import { assertWithinRateLimit, clientIpFromRequest } from "@/lib/rate-limit";
 
 const signupSchema = z.object({
   display_name: z.string().nullable().optional(),
@@ -20,6 +22,7 @@ const signupSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    assertWithinRateLimit(`auth:signup:${clientIpFromRequest(request)}`, 15, 60_000);
     const body = signupSchema.parse(await request.json());
     const user = await createUserAccount({
       email: body.email,
@@ -39,11 +42,14 @@ export async function POST(request: Request) {
       }
     });
 
-    return applySessionCookie(response, session, request.url);
+    return applySessionCookie(response, session, request.url, {
+      accountKind: accountKindFromUser(user)
+    });
   } catch (error) {
     logEvent(
       "auth.signup.failed",
       {
+        request_id: requestIdFromRequest(request),
         reason: error instanceof Error ? error.message : "unknown"
       },
       "warn"

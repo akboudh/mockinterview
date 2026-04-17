@@ -35,6 +35,9 @@ describe("auth", () => {
       displayName: "Student"
     });
 
+    expect(user.roles).toEqual(["student"]);
+    expect(user.roles).not.toContain("mentor");
+
     const authenticated = await authenticateUser({
       email: "student@example.com",
       password: "strong-password-123"
@@ -56,7 +59,8 @@ describe("auth", () => {
       mentorAccessCode: "mentor-dev-access"
     });
 
-    expect(user.roles).toContain("mentor");
+    expect(user.roles).toEqual(["mentor"]);
+    expect(user.roles).not.toContain("student");
   });
 
   it("rejects mentor signup without an approved email or access code", async () => {

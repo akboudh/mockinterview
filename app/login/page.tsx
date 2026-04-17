@@ -5,6 +5,7 @@ import { AuthPanel } from "@/components/auth/auth-panel";
 import { Button } from "@/components/ui/button";
 import { SectionShell } from "@/components/ui/section-shell";
 import { getCurrentUser } from "@/lib/auth";
+import { getMentorLoginHref } from "@/lib/cross-app-urls";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +20,12 @@ export default async function LoginPage() {
     <main className="page-shell py-10">
       <SectionShell
         eyebrow="Login"
-        title="Sign in before starting a personalized interview session."
-        description="This local MVP now supports accounts, secure password hashing, and server-side sessions so your history stays attached to you."
+        description="Use your account so interview history, resume context, and insights stay in one place."
       >
         <AuthPanel context="student" />
         <div className="mt-6 flex justify-end">
           <Button asChild variant="secondary" size="sm">
-            <Link href="/mentor/login">Mentor sign in</Link>
+            <Link href={getMentorLoginHref()}>Mentor sign in</Link>
           </Button>
         </div>
       </SectionShell>

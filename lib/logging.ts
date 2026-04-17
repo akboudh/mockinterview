@@ -8,6 +8,10 @@ function formatLogEntry(event: string, payload: Record<string, unknown>) {
   });
 }
 
+export function requestIdFromRequest(request: Request) {
+  return request.headers.get("x-request-id") ?? undefined;
+}
+
 export function logEvent(
   event: string,
   payload: Record<string, unknown> = {},

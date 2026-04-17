@@ -16,14 +16,14 @@ export function MentorInterventionPanel({
   const [status, setStatus] = useState<{ title: string; tone: "info" | "success" | "error" } | null>(
     null
   );
-  const [submitting, setSubmitting] = useState<"feedback" | "takeover" | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  async function submit(path: "/mentor/feedback" | "/mentor/takeover", type: "feedback" | "takeover") {
-    setSubmitting(type);
+  async function submitFeedback() {
+    setSubmitting(true);
     setStatus(null);
 
     try {
-      const response = await fetch(path, {
+      const response = await fetch("/mentor/feedback", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -39,7 +39,7 @@ export function MentorInterventionPanel({
       }
       setMessage("");
       setStatus({
-        title: type === "feedback" ? "Supplemental feedback recorded." : "Live takeover recorded.",
+        title: "Supplemental feedback recorded.",
         tone: "success"
       });
       await onSuccess?.();
@@ -49,7 +49,7 @@ export function MentorInterventionPanel({
         tone: "error"
       });
     } finally {
-      setSubmitting(null);
+      setSubmitting(false);
     }
   }
 
@@ -57,27 +57,21 @@ export function MentorInterventionPanel({
     <div className="premium-panel rounded-[30px] p-6">
       <p className="text-xs uppercase tracking-[0.28em] text-white/45">Mentor action</p>
       <h3 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">
-        Add feedback or take over live.
+        Add supplemental feedback.
       </h3>
       <textarea
         className="field mt-5 min-h-36 resize-none"
-        placeholder="Add a supplemental coaching note or a real-time takeover message."
+        placeholder="Write a coaching note for this session. The student will see it in their session history."
         value={message}
         onChange={(event) => setMessage(event.target.value)}
       />
       <div className="mt-4 flex flex-wrap gap-3">
         <Button
           variant="secondary"
-          onClick={() => submit("/mentor/feedback", "feedback")}
-          disabled={!message.trim() || submitting !== null}
+          onClick={() => void submitFeedback()}
+          disabled={!message.trim() || submitting}
         >
-          {submitting === "feedback" ? "Saving..." : "Add supplemental feedback"}
-        </Button>
-        <Button
-          onClick={() => submit("/mentor/takeover", "takeover")}
-          disabled={!message.trim() || submitting !== null}
-        >
-          {submitting === "takeover" ? "Taking over..." : "Take over session"}
+          {submitting ? "Saving..." : "Add supplemental feedback"}
         </Button>
       </div>
       {status ? <div className="mt-4"><Toast title={status.title} tone={status.tone} /></div> : null}

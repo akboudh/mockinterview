@@ -17,8 +17,8 @@ export default async function SetupPage() {
     <main className="page-shell py-10">
       <SectionShell
         eyebrow="Interview setup"
-        title="Configure the role, mode, and coaching depth before the session starts."
-        description="Required fields are enforced. The preview panel shows what the session will include, including whether personalization history is available."
+        title="Shape the next session before you hit launch."
+        description="Set the role, choose the interview mode, and tune the amount of timing, resume context, and coaching support you want. The preview updates live."
       >
         <InterviewSetupForm
           personalizationAvailable={priorContext.context_items.length > 0}

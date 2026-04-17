@@ -1,7 +1,15 @@
-import { MAX_QUESTIONS_PER_SESSION } from "@/lib/constants";
-import { readDb, updateDb } from "@/lib/db";
+import { DEFAULT_QUESTIONS_PER_SESSION } from "@/lib/constants";
+import {
+  incrementalEndSession,
+  incrementalPrependOpeningMessage,
+  incrementalSaveStudentAnswer,
+  incrementalSetSessionStatus,
+  incrementalStartSession
+} from "@/lib/db-incremental";
+import { readDb } from "@/lib/db";
 import { logEvent } from "@/lib/logging";
 import { buildPersonalizationSummary, extractResumeHighlights, normalizeResumeText } from "@/lib/personalization";
+import { buildOpeningIntroLine } from "@/lib/interview-intro";
 import { average } from "@/lib/utils";
 import { recallContext, saveEvent } from "@/lib/services/memory-service";
 import { inspectForGuardrails, recordGuardrailFlags } from "@/lib/services/guardrail-service";
@@ -53,6 +61,8 @@ export async function startSession(params: {
   mode: InterviewMode;
   focus_area?: string | null;
   confidence_self_rating?: number | null;
+  question_limit?: number | null;
+  question_time_limit_seconds?: number | null;
   personalization_enabled: boolean;
   self_critique_enabled: boolean;
   notes?: string | null;
@@ -80,6 +90,8 @@ export async function startSession(params: {
     target_role: params.target_role,
     focus_area: params.focus_area ?? null,
     confidence_self_rating: params.confidence_self_rating ?? null,
+    question_limit: params.question_limit ?? DEFAULT_QUESTIONS_PER_SESSION,
+    question_time_limit_seconds: params.question_time_limit_seconds ?? null,
     status: "initialized",
     started_at: new Date().toISOString(),
     ended_at: null,
@@ -91,37 +103,14 @@ export async function startSession(params: {
   };
   const runtimeState = createInitialAgentState(session);
 
-  await updateDb((db) => ({
-    ...db,
-    users: db.users.some((user) => user.user_id === params.user_id)
-      ? db.users.map((user) =>
-          user.user_id === params.user_id
-            ? {
-                ...user,
-                resume_text: (normalizedResumeText || user.resume_text) ?? null,
-                target_roles: Array.from(new Set([...(user.target_roles ?? []), params.target_role])),
-                preferred_modes: Array.from(new Set([...(user.preferred_modes ?? []), params.mode])),
-                updated_at: new Date().toISOString()
-              }
-            : user
-        )
-      : [
-          ...db.users,
-        {
-          user_id: params.user_id,
-          display_name: "Career-Ready Student",
-          resume_text: normalizedResumeText || null,
-          resume_file_name: null,
-          target_roles: [params.target_role],
-          preferred_modes: [params.mode],
-          known_weak_skills: [],
-          created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        ],
-    sessions: [...db.sessions, session],
-    agentSessionStates: [...db.agentSessionStates, runtimeState]
-  }));
+  await incrementalStartSession({
+    session,
+    runtimeState,
+    userId: params.user_id,
+    normalizedResumeText,
+    targetRole: params.target_role,
+    mode: params.mode
+  });
 
   await saveEvent({
     session_id: session.session_id,
@@ -155,6 +144,8 @@ export async function startSession(params: {
     target_role: session.target_role,
     personalization_enabled: session.personalization_enabled,
     self_critique_enabled: session.self_critique_enabled,
+    question_limit: session.question_limit,
+    question_time_limit_seconds: session.question_time_limit_seconds,
     resume_loaded: Boolean(session.resume_text)
   });
 
@@ -188,34 +179,34 @@ export async function saveStudentAnswer(params: {
     message_order: orderedMessages.length + 1,
     created_at: new Date().toISOString()
   };
-  const findings = inspectForGuardrails(params.content);
+  const findings = await inspectForGuardrails({
+    text: params.content,
+    source: "student",
+    session_id: session.session_id,
+    message_id: message.message_id
+  });
 
-  await updateDb((currentDb) => ({
-    ...currentDb,
-    messages: [...currentDb.messages, message],
-    sessions: currentDb.sessions.map((entry) =>
-      entry.session_id === session.session_id
-        ? {
-            ...entry,
-            status: findings.length ? "flagged" : "active"
-          }
-        : entry
-    ),
-    agentSessionStates: currentDb.agentSessionStates.map((state) =>
-      state.session_id === session.session_id
-        ? {
-            ...state,
-            latest_answer_text: params.content,
-            recent_messages: [...orderedMessages, message].slice(-4).map((entry) => ({
-              speaker_type: entry.speaker_type,
-              content: entry.content
-            })),
-            flagged: findings.length ? true : state.flagged,
-            updated_at: new Date().toISOString()
-          }
-        : state
-    )
-  }));
+  const currentState = db.agentSessionStates.find((s) => s.session_id === params.session_id);
+  if (!currentState) {
+    throw new Error("Agent state not found.");
+  }
+  const nextAgentState: AgentSessionState = {
+    ...currentState,
+    latest_answer_text: params.content,
+    recent_messages: [...orderedMessages, message].slice(-4).map((entry) => ({
+      speaker_type: entry.speaker_type,
+      content: entry.content
+    })),
+    flagged: findings.length ? true : currentState.flagged,
+    updated_at: new Date().toISOString()
+  };
+
+  await incrementalSaveStudentAnswer({
+    message,
+    sessionId: params.session_id,
+    sessionStatus: findings.length ? "flagged" : "active",
+    nextAgentState
+  });
 
   await saveEvent({
     session_id: session.session_id,
@@ -231,7 +222,8 @@ export async function saveStudentAnswer(params: {
   await recordGuardrailFlags({
     session_id: session.session_id,
     message_id: message.message_id,
-    findings
+    findings,
+    allowSessionTermination: true
   });
 
   logEvent("session.answer.saved", {
@@ -245,47 +237,37 @@ export async function saveStudentAnswer(params: {
 }
 
 export async function setSessionStatus(sessionId: string, status: SessionStatus) {
-  await updateDb((db) => ({
-    ...db,
-    sessions: db.sessions.map((session) =>
-      session.session_id === sessionId ? { ...session, status } : session
-    )
-  }));
+  await incrementalSetSessionStatus(sessionId, status);
 }
 
 export async function endSession(
   sessionId: string,
-  reason: "manual_end" | "question_limit_reached" | "session_feedback_completed" = "manual_end"
+  reason:
+    | "manual_end"
+    | "question_limit_reached"
+    | "session_feedback_completed"
+    | "guardrail_auto_end" = "manual_end"
 ) {
-  await updateDb((db) => ({
-    ...db,
-    sessions: db.sessions.map((session) =>
-      session.session_id === sessionId
-        ? {
-            ...session,
-            status: "completed",
-            ended_at: session.ended_at ?? new Date().toISOString()
-          }
-        : session
-    ),
-    agentSessionStates: db.agentSessionStates.map((state) =>
-      state.session_id === sessionId
-        ? {
-            ...state,
-            previous_phase: state.current_phase,
-            current_phase: "session_feedback",
-            turn_type: "termination",
-            updated_at: new Date().toISOString(),
-            state_json: {
-              ...state.state_json,
-              current_phase: "session_feedback",
-              summary_ready: true,
-              session_end_reason: reason
-            }
-          }
-        : state
-    )
-  }));
+  const db = await readDb();
+  const session = db.sessions.find((entry) => entry.session_id === sessionId);
+  const state = db.agentSessionStates.find((entry) => entry.session_id === sessionId);
+  if (!session || !state) {
+    throw new Error("Session not found.");
+  }
+  const nextAgent: AgentSessionState = {
+    ...state,
+    previous_phase: state.current_phase,
+    current_phase: "session_feedback",
+    turn_type: "termination",
+    updated_at: new Date().toISOString(),
+    state_json: {
+      ...state.state_json,
+      current_phase: "session_feedback",
+      summary_ready: true,
+      session_end_reason: reason
+    }
+  };
+  await incrementalEndSession(sessionId, session.ended_at ?? new Date().toISOString(), nextAgent);
 
   logEvent("session.completed", {
     session_id: sessionId,
@@ -326,6 +308,9 @@ export async function listSessions(userId: string) {
           (message) =>
             message.session_id === session.session_id && message.speaker_type === "student"
         ).length,
+        mentor_feedback_count: db.mentorInterventions.filter(
+          (i) => i.session_id === session.session_id && i.intervention_type === "supplemental_feedback"
+        ).length,
         summary_score: averageScore
       };
     });
@@ -344,6 +329,49 @@ export async function assertSessionOwnership(sessionId: string, userId: string) 
   }
 
   return session;
+}
+
+export async function prependOpeningIntroMessage(sessionId: string, userId: string) {
+  const db = await readDb();
+  const session = db.sessions.find((entry) => entry.session_id === sessionId);
+
+  if (!session || session.user_id !== userId) {
+    throw new Error("Session not found.");
+  }
+
+  const sessionMessages = db.messages
+    .filter((entry) => entry.session_id === sessionId)
+    .sort((left, right) => left.message_order - right.message_order);
+
+  if (sessionMessages.some((m) => m.meta && (m.meta as { opening_intro?: boolean }).opening_intro)) {
+    return { skipped: true as const };
+  }
+
+  const interviewerCount = sessionMessages.filter((m) => m.speaker_type === "interviewer").length;
+  const studentCount = sessionMessages.filter((m) => m.speaker_type === "student").length;
+
+  if (interviewerCount !== 1 || studentCount !== 0) {
+    return { skipped: true as const };
+  }
+
+  const user = db.users.find((entry) => entry.user_id === userId);
+  const content = buildOpeningIntroLine(user?.display_name, session.mode, session.target_role);
+  const now = new Date().toISOString();
+  const message: Message = {
+    message_id: crypto.randomUUID(),
+    session_id: sessionId,
+    speaker_type: "interviewer",
+    content,
+    message_order: 1,
+    created_at: now,
+    meta: {
+      question_type: "primary",
+      opening_intro: true
+    }
+  };
+
+  await incrementalPrependOpeningMessage({ sessionId, message });
+  return { skipped: false as const, message };
 }
 
 export async function getSessionSummary(
@@ -406,8 +434,11 @@ export async function getSessionSummary(
     ? latestEvaluation.growth_tips[0]
     : `Plan a ${session.mode} session focused on ${session.focus_area ?? "structured confidence"}.`;
 
+  const studentUser = db.users.find((entry) => entry.user_id === session.user_id);
+
   return {
     session,
+    student_display_name: studentUser?.display_name?.trim() || null,
     messages,
     evaluations,
     flags,
@@ -421,11 +452,6 @@ export async function getSessionSummary(
       turn_count: runtime.turn_count,
       turn_type: runtime.turn_type,
       flagged: runtime.flagged || flags.length > 0,
-      mentor_takeover_active:
-        runtime.mentor_takeover_active ||
-        mentorInterventions.some(
-          (intervention) => intervention.intervention_type === "takeover"
-        ),
       conversation_summary: runtime.conversation_summary ?? null
     }
   };
@@ -470,6 +496,6 @@ export async function getProgressInsights(userId: string) {
       .sort((left, right) => right[1] - left[1])
       .slice(0, 3)
       .map(([skill]) => skill),
-    questionLimit: MAX_QUESTIONS_PER_SESSION
+    questionLimit: DEFAULT_QUESTIONS_PER_SESSION
   };
 }

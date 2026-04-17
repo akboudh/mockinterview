@@ -8,8 +8,9 @@ Vantage is a local-first mock interview platform for students. It includes a gui
 - AI interview runtime with `Analyzer -> Orchestrator -> Speaker` separation
 - rubric-based evaluation with STAR analysis and optional self-critique
 - short-term, episodic, and long-term memory for personalization
-- guardrails for unsafe or hostile content
-- mentor dashboard, flag review, feedback, and live takeover
+- LangChain-backed memory abstractions for transcript buffering, embeddings, and semantic retrieval
+- guardrails for unsafe or hostile content with optional external-provider checks and local YAML fallback
+- mentor dashboard, flag review, and per-session feedback (students see feedback in session results/history)
 - local SQLite persistence with cookie-based auth
 
 ## Product workflow
@@ -21,9 +22,16 @@ Vantage is a local-first mock interview platform for students. It includes a gui
 5. Each student answer goes through `POST /evaluate_response`, which saves the answer, runs guardrails, evaluates it against the rubric, and writes memory events.
 6. The app recalls fresh context and calls `POST /ask_question` again for the next turn.
 7. When the interview ends, the session moves to `session_feedback`, and the user can review `/results/[sessionId]`, `/history`, and `/insights`.
-8. Mentors can log in separately, review flags, leave feedback, or take over a live session from `/mentor`.
+8. Mentors can log in separately, review flags, and leave per-session feedback from `/mentor`. Students see that feedback in `/results/[sessionId]` and `/history`.
 
 For the full architecture walkthrough, see [`docs/app-workflow.md`](./docs/app-workflow.md).
+
+## Architecture snapshot
+
+- the interview orchestrator stays on `LangGraph`; the Analyzer, phase logic, and Speaker runtime are unchanged by the infrastructure work in this repo
+- the memory layer is where `LangChain` abstractions now live: embeddings, retriever interfaces, and short-term transcript buffering are wrapped behind the local memory service
+- guardrails run through a provider adapter; local YAML rules remain the default, and an external guardrail endpoint can be configured without removing the local fallback
+- **Deployment shape**: one `Next.js` process can serve everything (student + mentor + APIs + SSE). Optionally you run **two** processes with `APP_SURFACE=student` and `APP_SURFACE=mentor` (see [Split student / mentor dev](#split-student--mentor-dev-optional)) for separate origins and clearer role separation in development or Docker.
 
 ## Stack
 
@@ -60,16 +68,16 @@ If the other developer does not use `nvm`, installing Node 22 manually is fine.
 macOS/Linux:
 
 ```bash
-cp .env.example .env.local
+cp .env.example .env
 ```
 
 Windows PowerShell:
 
 ```powershell
-Copy-Item .env.example .env.local
+Copy-Item .env.example .env
 ```
 
-Default behavior in `.env.example` is safe for local onboarding:
+You can use `.env.local` instead; Next.js loads both (`.env.local` overrides). Default values in `.env.example` are safe for onboarding:
 
 - `LLM_PROVIDER=deterministic`
 - API keys can stay blank
@@ -82,13 +90,59 @@ If someone wants live model output instead of deterministic fallback:
 
 ### 3. Start the app
 
+**Single integrated dev server** (default):
+
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+The launcher prefers port `3000` and, if that port is busy, picks the next free port (see `scripts/dev.mjs`).
 
-On first run, the app will create the SQLite database automatically if it does not exist.
+On first run, the app creates the SQLite database if it does not exist.
+
+### 3a. Mentor dashboard on a separate origin (split student / mentor)
+
+The codebase can run as **two apps**: students on one port, mentors on another. The **mentor surface** only serves mentor routes (`/mentor`, `/flags`, auth, SSE, health); visiting `/` goes to `/mentor`. The **student surface** sends any `/mentor/*` request to `MENTOR_APP_URL` so the dashboard always lives on the mentor origin.
+
+**Start Redis** (recommended for fastest live updates across two Node processes):
+
+```bash
+docker run --rm -p 6379:6379 redis:7-alpine
+```
+
+**One terminal (both servers):**
+
+```bash
+npm run dev:both
+```
+
+**Or two terminals:**
+
+```bash
+npm run dev:student   # http://student.localhost:3000 — student app
+npm run dev:mentor      # http://mentor.localhost:3001 — mentor app (dashboard at /mentor)
+```
+
+**Env (in `.env`):** point each side at the other so login links and redirects work:
+
+- `MENTOR_APP_URL=http://mentor.localhost:3001`
+- `STUDENT_APP_URL=http://student.localhost:3000`
+
+**Important (cookie isolation):** cookies are scoped to hostnames, not ports. To stay logged into both apps at once, the split dev scripts bind to **different hostnames**:
+
+- student app: `http://student.localhost:3000`
+- mentor app: `http://mentor.localhost:3001`
+
+Do **not** put `APP_SURFACE` in `.env` for local split dev—the `dev:student` / `dev:mentor` / `dev:both` scripts set it per process. Use a **single** combined app only when you run plain `npm run dev` (no `APP_SURFACE`; student + mentor both exist on the same origin).
+
+### 3b. Run the integrated app in Docker
+
+```bash
+docker build -t vantage-mockinterview .
+docker run --rm -p 3000:3000 --env-file .env vantage-mockinterview
+```
+
+For split containers, see `docker-compose.split.yml` and the same `APP_SURFACE` / URL variables as local split dev.
 
 ### 4. Use the app
 
@@ -98,17 +152,14 @@ On first run, the app will create the SQLite database automatically if it does n
 - browse prior sessions in `/history`
 - check trends in `/insights`
 
-For mentor access on another machine:
-
-- set `MENTOR_EMAILS` or `ADMIN_EMAILS` to a comma-separated allowlist
-- or keep `MENTOR_SIGNUP_CODE` set and create a mentor account from `/mentor/login`
+**Mentor access**: roles are stored on the account in the database (not inferred from env at every request). `MENTOR_EMAILS` / `MENTOR_SIGNUP_CODE` only control **who may create** a mentor account (`/mentor/login` signup). Use `ADMIN_EMAILS` similarly for admin creation paths where applicable.
 
 ## Local development workflow
 
 Typical developer loop:
 
 1. `npm install`
-2. copy `.env.example` to `.env.local`
+2. copy `.env.example` to `.env` (or `.env.local`)
 3. run `npm run dev`
 4. make changes
 5. run `npm test`
@@ -119,13 +170,16 @@ The smoke script does a fresh build, boots `next start`, waits for `/login`, and
 
 ## Useful scripts
 
-- `npm run dev` - start the Next.js dev server
+- `npm run dev` - start the Next.js dev server (port 3000 or next free)
+- `npm run dev:student` / `npm run dev:mentor` - split surfaces on `student.localhost:3000` / `mentor.localhost:3001`
 - `npm run build` - production build
 - `npm run start` - run the production server after building
 - `npm test` - run the Vitest suite
 - `npm run test:watch` - watch mode for tests
 - `npm run db:import` - import legacy seed data from [`data/mock-db.json`](./data/mock-db.json)
-- `npm run db:clear` - clear the local SQLite database
+- `npm run db:clear` - truncate application tables in the local SQLite DB (keeps schema)
+- `npm run db:clean-roles` - reset user roles in the local DB (see script for behavior)
+- `npm run db:wipe` - delete local SQLite files and legacy `data/mock-db.json` (full reset)
 - `npm run seed` - generate synthetic data
 - `npm run smoke:prod` - production smoke check
 
@@ -139,11 +193,19 @@ The smoke script does a fresh build, boots `next start`, waits for `/login`, and
 | `GOOGLE_API_KEY` | Required only when using Gemini. |
 | `OPENAI_MODEL` | OpenAI model name. |
 | `GEMINI_MODEL` | Gemini model name. |
-| `NEXT_PUBLIC_APP_URL` | Base app URL, usually `http://localhost:3000` locally. |
-| `MENTOR_EMAILS` | Optional mentor email allowlist. |
-| `ADMIN_EMAILS` | Optional admin email allowlist. |
+| `NEXT_PUBLIC_APP_URL` | Optional base app URL. Locally, match the port your dev server actually uses. |
+| `APP_SURFACE` | `student` or `mentor` when running split servers; omit for combined app. |
+| `MENTOR_APP_URL` / `STUDENT_APP_URL` | Origins for cross-app login links and student-surface redirects away from `/mentor/*`. |
+| `MENTOR_EMAILS` | Optional comma-separated list: those emails may **create** a mentor account (with signup flow); roles live in the DB after signup. |
+| `ADMIN_EMAILS` | Optional comma-separated list for admin account creation gates where used. |
 | `MENTOR_SIGNUP_CODE` | Shared code for mentor account creation in local/dev use. |
+| `GUARDRAIL_PROVIDER` | `local` by default. Set to `external` to call an external guardrail endpoint first. |
+| `GUARDRAIL_API_URL` | External guardrail endpoint URL used when `GUARDRAIL_PROVIDER=external`. |
+| `GUARDRAIL_API_KEY` | Optional bearer token for the external guardrail endpoint. |
+| `GUARDRAIL_TIMEOUT_MS` | Timeout for the external guardrail request before falling back locally. |
 | `GUARDRAIL_POLICY_PATH` | Optional override for the guardrail policy file. |
+| `REDIS_URL` | Optional; used when configuring shared realtime/event features in deployment. |
+| `AI_REQUEST_TIMEOUT_MS` | Optional cap on upstream AI request duration. |
 
 ## Portability notes
 
@@ -157,6 +219,7 @@ The smoke script does a fresh build, boots `next start`, waits for `/login`, and
 - OpenAPI contract: [`docs/openapi.yaml`](./docs/openapi.yaml)
 - architecture and end-to-end flow: [`docs/app-workflow.md`](./docs/app-workflow.md)
 - deployment notes: [`docs/deployment-readme.md`](./docs/deployment-readme.md)
+- current project status: [`docs/project-status-report.md`](./docs/project-status-report.md)
 - data model summary: [`docs/schema.md`](./docs/schema.md)
 - socket event notes: [`docs/socket-events.md`](./docs/socket-events.md)
 - guardrail policy: [`guardrails/policy.yaml`](./guardrails/policy.yaml)

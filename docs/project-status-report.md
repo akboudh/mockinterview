@@ -28,7 +28,7 @@ Build an intelligent mock interview platform for career-ready students that can 
 - Local login is working with hashed passwords and cookie-based sessions
 - Resume upload and parsing are working for PDF, text, markdown, and HTML resumes, and the saved resume is tied to the logged-in user
 - Rich-text resume conversion for `.doc`, `.docx`, and `.rtf` is currently macOS-only because it relies on `textutil`
-- Supporting deliverables are present: OpenAPI spec, schema docs, rubric YAML, guardrail policy, sample cURL client, synthetic-data script, evaluation notebook, and dashboard Dockerfile
+- Supporting deliverables are present: OpenAPI spec, schema docs, rubric YAML, guardrail policy, sample cURL client, synthetic-data script, evaluation notebook, and an integrated Docker deployment for the full app
 
 ## What I Am Actively Working On
 - Operational hardening around Node LTS usage, clean production builds, and repeatable smoke validation
@@ -49,7 +49,7 @@ Build an intelligent mock interview platform for career-ready students that can 
 - Guardrails and HITL Dashboard
 
 ## How The Project Has Been Built So Far
-The project was built as a Next.js application with a modular service layer for orchestration, memory, evaluation, guardrails, mentor workflows, and auth. The interview engine was refactored into a config-driven agent structure with Analyzer, Orchestrator, and Speaker stages so the dialogue flow is easier to control and extend. Local JSON storage was replaced with SQLite for more reliable persistence, and live-model support was added through a provider adapter so the system can run with OpenAI, Gemini, or deterministic fallback logic. The current system is REST-first for the main interview flow, with Server-Sent Events used for mentor and guardrail supervision updates.
+The project was built as an integrated Next.js application with a modular service layer for orchestration, memory, evaluation, guardrails, mentor workflows, and auth. The interview engine was refactored into a config-driven LangGraph runtime with Analyzer, Orchestrator, and Speaker stages so the dialogue flow is easier to control and extend. The memory layer now exposes LangChain-backed abstractions for embeddings, semantic retrieval, and short-term transcript buffering while keeping local SQLite as the source of truth. Guardrails run through a provider adapter so the app can use an external guardrail endpoint with the local YAML policy retained as fallback. Local JSON storage was replaced with SQLite for more reliable persistence, and live-model support was added through provider adapters so the system can run with OpenAI, Gemini, or deterministic fallback logic. The current system is REST-first for the main interview flow, with Server-Sent Events used for mentor and guardrail supervision updates.
 
 ## Challenges Encountered
 - Balancing a real agent-style architecture with MVP simplicity

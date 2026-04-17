@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost:3000}"
+BASE_URL="${BASE_URL:-http://127.0.0.1:${PORT:-3000}}"
 COOKIE_JAR="$(mktemp)"
 PASSWORD="${PASSWORD:-strong-password-123}"
 EMAIL="${EMAIL:-student.$(date +%s).$RANDOM@example.com}"

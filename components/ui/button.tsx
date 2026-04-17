@@ -18,7 +18,7 @@ type ButtonProps = {
 
 const styles = {
   primary:
-    "border border-sky-100/24 bg-[linear-gradient(135deg,#86c7ee_0%,#4b9dd4_44%,#d87859_100%)] text-slate-950 shadow-[0_16px_36px_rgba(14,42,78,0.2)] hover:translate-y-[-1px] hover:brightness-105",
+    "border border-sky-100/24 bg-[linear-gradient(135deg,#9ad8fb_0%,#62b7e8_42%,#e28767_100%)] text-slate-950 shadow-[0_18px_40px_rgba(14,42,78,0.22)] hover:translate-y-[-1px] hover:brightness-105",
   secondary:
     "border border-white/14 bg-white/6 text-white hover:border-white/24 hover:bg-white/10",
   light:
@@ -40,7 +40,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    "inline-flex items-center justify-center whitespace-nowrap rounded-full font-medium transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mist/70 disabled:pointer-events-none disabled:opacity-55",
+    "inline-flex items-center justify-center whitespace-nowrap rounded-full font-medium transition duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mist/70 disabled:pointer-events-none disabled:opacity-55",
     styles[variant],
     sizes[size],
     className

@@ -5,13 +5,17 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
+import { ACCOUNT_KIND_COOKIE, AUTH_COOKIE_NAME as AUTH_COOKIE_NAME_IMPORTED } from "@/lib/auth-constants";
 import { readDb, updateDb } from "@/lib/db";
 import { logEvent } from "@/lib/logging";
+import { RateLimitError } from "@/lib/rate-limit";
 import type { AuthSessionRecord, UserProfile, UserRole } from "@/lib/types";
 
 const scrypt = promisify(nodeScrypt);
 
-export const AUTH_COOKIE_NAME = "vantage_session";
+export { ACCOUNT_KIND_COOKIE };
+export const AUTH_COOKIE_NAME = AUTH_COOKIE_NAME_IMPORTED;
+export type AccountKind = "mentor" | "student";
 const PASSWORD_PREFIX = "scrypt";
 const PASSWORD_KEY_LENGTH = 64;
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 14;
@@ -79,7 +83,15 @@ export function getUserRoles(user: UserProfile | null | undefined): UserRole[] {
     return [];
   }
 
-  return Array.from(new Set([...(user.roles ?? []), ...rolesFromEmail(user.email)]));
+  return [...(user.roles ?? [])];
+}
+
+/** True when this login should use the mentor-only app (mentor or admin dashboard). */
+export function accountKindFromUser(user: UserProfile): AccountKind {
+  if (userHasRole(user, ["mentor", "admin"])) {
+    return "mentor";
+  }
+  return "student";
 }
 
 export function userHasRole(
@@ -233,8 +245,8 @@ export async function createUserAccount(params: {
   const email = normalizeEmail(params.email);
   const passwordHash = await hashPassword(params.password);
   const now = new Date().toISOString();
-  const inferredRoles = rolesFromEmail(email);
-  const roles = new Set<UserRole>(["student", ...inferredRoles]);
+
+  const roles = new Set<UserRole>();
 
   if (params.requestedRole === "mentor") {
     if (!canCreateMentorAccount({ email, mentorAccessCode: params.mentorAccessCode })) {
@@ -242,6 +254,8 @@ export async function createUserAccount(params: {
     }
 
     roles.add("mentor");
+  } else {
+    roles.add("student");
   }
 
   const user: UserProfile = {
@@ -345,25 +359,49 @@ export async function invalidateCurrentSession() {
 export function applySessionCookie(
   response: NextResponse,
   session: { token: string; expiresAt: Date },
-  requestUrl?: string
+  requestUrl?: string,
+  options?: { accountKind?: AccountKind }
 ) {
-  response.cookies.set(AUTH_COOKIE_NAME, session.token, cookieOptions(session.expiresAt, requestUrl));
+  const opts = cookieOptions(session.expiresAt, requestUrl);
+  response.cookies.set(AUTH_COOKIE_NAME, session.token, opts);
+  if (options?.accountKind) {
+    response.cookies.set(ACCOUNT_KIND_COOKIE, options.accountKind, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: shouldUseSecureCookies(requestUrl),
+      path: "/",
+      expires: session.expiresAt
+    });
+  }
   return response;
 }
 
 export function clearSessionCookie(response: NextResponse, requestUrl?: string) {
+  const expired = new Date(0);
+  const secure = shouldUseSecureCookies(requestUrl);
   response.cookies.set(AUTH_COOKIE_NAME, "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: shouldUseSecureCookies(requestUrl),
+    secure,
     path: "/",
-    expires: new Date(0)
+    expires: expired
+  });
+  response.cookies.set(ACCOUNT_KIND_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    path: "/",
+    expires: expired
   });
   return response;
 }
 
 export function authJsonError(error: unknown, fallbackMessage: string) {
-  const status = error instanceof AuthError ? error.status : 400;
+  const status = error instanceof AuthError
+    ? error.status
+    : error instanceof RateLimitError
+      ? error.status
+      : 400;
   return NextResponse.json(
     {
       error: error instanceof Error ? error.message : fallbackMessage

@@ -30,6 +30,8 @@ export const sessionsTable = sqliteTable("sessions", {
   target_role: text("target_role").notNull(),
   focus_area: text("focus_area"),
   confidence_self_rating: integer("confidence_self_rating"),
+  question_limit: integer("question_limit"),
+  question_time_limit_seconds: integer("question_time_limit_seconds"),
   status: text("status").notNull(),
   started_at: text("started_at").notNull(),
   ended_at: text("ended_at"),
@@ -136,6 +138,16 @@ export const mentorInterventionsTable = sqliteTable("mentor_interventions", {
   mentor_message: text("mentor_message").notNull(),
   intervention_type: text("intervention_type").notNull(),
   created_at: text("created_at").notNull()
+});
+
+export const mentorDirectMessagesTable = sqliteTable("mentor_direct_messages", {
+  dm_id: text("dm_id").primaryKey(),
+  from_user_id: text("from_user_id").notNull(),
+  to_user_id: text("to_user_id").notNull(),
+  session_id: text("session_id"),
+  body: text("body").notNull(),
+  created_at: text("created_at").notNull(),
+  read_at: text("read_at")
 });
 
 export const agentSessionStatesTable = sqliteTable("agent_session_state", {

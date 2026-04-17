@@ -1,0 +1,15 @@
+.git
+.github
+.next
+coverage
+node_modules
+npm-debug.log*
+playwright-report
+test-results
+tmp
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+.env
+.env.local
+.DS_Store

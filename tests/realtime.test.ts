@@ -45,20 +45,20 @@ describe("realtime event bus", () => {
     });
     publishRealtimeEvent({
       event_id: "event-mentor",
-      type: "session.mentor.takeover",
+      type: "session.mentor.feedback",
       session_id: "sess-1",
       user_id: "student-1",
       audience: "mentor",
       created_at: "2026-04-06T13:00:01.000Z",
       payload: {
-        intervention_id: "takeover-1"
+        intervention_id: "feedback-1"
       }
     });
 
     expect(sessionEvents).toHaveLength(1);
     expect(sessionEvents[0]?.type).toBe("session.flag.created");
     expect(mentorEvents).toHaveLength(1);
-    expect(mentorEvents[0]?.type).toBe("session.mentor.takeover");
+    expect(mentorEvents[0]?.type).toBe("session.mentor.feedback");
   });
 
   it("formats SSE frames with the event type and JSON payload", () => {

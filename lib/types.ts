@@ -60,6 +60,8 @@ export interface InterviewSession {
   target_role: string;
   focus_area?: string | null;
   confidence_self_rating?: number | null;
+  question_limit?: number | null;
+  question_time_limit_seconds?: number | null;
   status: SessionStatus;
   started_at: string;
   ended_at?: string | null;
@@ -210,8 +212,19 @@ export interface MentorIntervention {
   intervention_id: string;
   session_id: string;
   mentor_message: string;
-  intervention_type: "supplemental_feedback" | "takeover";
+  intervention_type: "supplemental_feedback";
   created_at: string;
+}
+
+/** Async mentor ↔ student messages (outside or about sessions). */
+export interface MentorDirectMessage {
+  dm_id: string;
+  from_user_id: string;
+  to_user_id: string;
+  session_id: string | null;
+  body: string;
+  created_at: string;
+  read_at: string | null;
 }
 
 export type RealtimeEventType =
@@ -219,7 +232,8 @@ export type RealtimeEventType =
   | "session.flag.created"
   | "session.flag.reviewed"
   | "session.mentor.feedback"
-  | "session.mentor.takeover";
+  | "session.ended"
+  | "mentor.dm.new";
 
 export interface RealtimeEventEnvelope {
   event_id: string;
@@ -227,7 +241,7 @@ export interface RealtimeEventEnvelope {
   session_id?: string | null;
   user_id?: string | null;
   created_at: string;
-  audience: "session" | "mentor";
+  audience: "session" | "mentor" | "user";
   payload: Record<string, unknown>;
 }
 
@@ -381,12 +395,15 @@ export interface MockInterviewDB {
   skillSignals: SkillSignal[];
   flags: FlagEvent[];
   mentorInterventions: MentorIntervention[];
+  mentorDirectMessages: MentorDirectMessage[];
   agentSessionStates: AgentSessionState[];
   conversationSummaries: ConversationSummaryRecord[];
 }
 
 export interface SessionSummary {
   session: InterviewSession;
+  /** First name or display name for spoken intro; omitted if unavailable. */
+  student_display_name?: string | null;
   messages: Message[];
   evaluations: EvaluationRecord[];
   flags: FlagEvent[];
@@ -406,7 +423,6 @@ export interface SessionSummary {
     turn_count: number;
     turn_type: AgentTurnType;
     flagged: boolean;
-    mentor_takeover_active: boolean;
     conversation_summary?: string | null;
   };
 }
@@ -421,6 +437,7 @@ export interface AskQuestionContext {
   mode: InterviewMode;
   target_role: string;
   focus_area?: string | null;
+  question_limit?: number | null;
   personalization_enabled: boolean;
   self_critique_enabled: boolean;
   resume_text?: string | null;

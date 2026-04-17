@@ -9,6 +9,7 @@ info:
     admin role.
 servers:
   - url: http://localhost:3000
+    description: Default local development URL. The actual dev port may move if 3000 is already in use.
 paths:
   /start_session:
     post:
@@ -267,11 +268,27 @@ components:
           type:
             - number
             - 'null'
+        question_limit:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 20
+        question_time_limit_seconds:
+          type:
+            - integer
+            - 'null'
+          minimum: 15
+          maximum: 600
         personalization_enabled:
           type: boolean
         self_critique_enabled:
           type: boolean
         notes:
+          type:
+            - string
+            - 'null'
+        resume_text:
           type:
             - string
             - 'null'
@@ -328,6 +345,12 @@ components:
           type:
             - string
             - 'null'
+        question_limit:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 20
         personalization_enabled:
           type: boolean
         self_critique_enabled:
@@ -444,7 +467,6 @@ components:
       type: object
       required:
         - session_id
-        - question_text
         - answer_text
         - target_role
         - mode
@@ -452,8 +474,12 @@ components:
       properties:
         session_id:
           type: string
+        question_message_id:
+          type: string
+          description: Preferred. Stable interviewer message id for this session.
         question_text:
           type: string
+          description: Required if question_message_id is omitted; matched against latest matching interviewer message.
         answer_text:
           type: string
         target_role:
@@ -845,18 +871,19 @@ components:
       type: object
       required:
         - session
-        - transcript
+        - messages
         - evaluations
         - strengths
-        - improvement_areas
-        - next_session_recommendation
+        - weaknesses
+        - nextSessionRecommendation
         - flags
-        - mentor_interventions
+        - mentorInterventions
+        - scoreSummary
         - agent_runtime
       properties:
         session:
           type: object
-        transcript:
+        messages:
           type: array
           items:
             type: object
@@ -868,17 +895,36 @@ components:
           type: array
           items:
             type: string
-        improvement_areas:
+        weaknesses:
           type: array
           items:
             type: string
-        next_session_recommendation:
+        nextSessionRecommendation:
           type: string
+        scoreSummary:
+          type: object
+          required:
+            - clarity
+            - structure
+            - relevance
+            - softSkills
+            - overallAverage
+          properties:
+            clarity:
+              type: number
+            structure:
+              type: number
+            relevance:
+              type: number
+            softSkills:
+              type: number
+            overallAverage:
+              type: number
         flags:
           type: array
           items:
             type: object
-        mentor_interventions:
+        mentorInterventions:
           type: array
           items:
             type: object

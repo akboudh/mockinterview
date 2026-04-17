@@ -75,7 +75,7 @@ function canUseTextutil() {
 
 export async function extractResumeTextFromFile(file: File) {
   if (file.size > MAX_RESUME_BYTES) {
-    throw new Error("Resume upload is limited to 5 MB for this MVP.");
+    throw new Error("Resume upload is limited to 5 MB.");
   }
 
   const extension = extname(file.name);

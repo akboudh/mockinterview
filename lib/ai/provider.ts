@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatOpenAI } from "@langchain/openai";
 
-import { MAX_QUESTIONS_PER_SESSION } from "@/lib/constants";
+import { DEFAULT_QUESTIONS_PER_SESSION } from "@/lib/constants";
 import { logEvent } from "@/lib/logging";
 import { QUESTION_BANK, renderQuestionTemplate } from "@/lib/services/question-bank";
 import { clampScore } from "@/lib/utils";
@@ -18,6 +18,12 @@ import type {
 } from "@/lib/types";
 
 type QuestionGenerationSource = "openai" | "gemini" | "deterministic";
+
+function aiAbortSignal() {
+  const ms = Number(process.env.AI_REQUEST_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(ms) && ms > 0 ? ms : 120_000;
+  return AbortSignal.timeout(timeoutMs);
+}
 
 const analyzerSchema = z.object({
   summary: z.string(),
@@ -258,7 +264,7 @@ function shouldUseGemini() {
   return currentProvider() === "gemini" && Boolean(process.env.GOOGLE_API_KEY);
 }
 
-const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+const DEFAULT_OPENAI_MODEL = "gpt-5.4-nano";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-1.5-flash"] as const;
 
@@ -351,51 +357,6 @@ function inferQuestionType(answer: string) {
   return "situational" as const;
 }
 
-function classifyGeneratedQuestion(question: string): QuestionCategory {
-  const lower = question.toLowerCase();
-
-  if (
-    /\b(go deeper|clarify|be more specific|specifically|what trade-?off|to build on that|further enhance|follow up|you mentioned|in that example|from that project|during the feature selection process|how did you navigate that decision)\b/.test(
-      lower
-    )
-  ) {
-    return "follow_up";
-  }
-
-  if (/\b(if|imagine|suppose|assume|how would you|what would you do)\b/.test(lower)) {
-    return "situational";
-  }
-
-  return "primary";
-}
-
-function shouldReplaceBehavioralQuestion(params: {
-  phase: AgentPhase;
-  answeredCount: number;
-  questionTypeHint?: QuestionCategory;
-  generatedQuestion: string;
-}) {
-  if (params.phase === "deep_dive" || params.answeredCount === 0) {
-    return false;
-  }
-
-  const desiredType = params.questionTypeHint ?? "primary";
-  const actualType = classifyGeneratedQuestion(params.generatedQuestion);
-
-  if (
-    (desiredType === "primary" || desiredType === "situational") &&
-    (actualType === "follow_up" || actualType === "clarifying")
-  ) {
-    return true;
-  }
-
-  if (desiredType === "situational" && actualType !== "situational") {
-    return true;
-  }
-
-  return false;
-}
-
 function detectStarCoverage(answer: string) {
   return {
     situation: /\bsituation\b|\bcontext\b|\bwhen\b|\bduring\b/i.test(answer),
@@ -468,6 +429,7 @@ function deterministicAnalysis(params: {
   mode: InterviewMode;
   currentPhase: AgentPhase;
   answeredCount: number;
+  questionLimit: number;
   weakSkills: string[];
 }) {
   const star = detectStarCoverage(params.latestAnswer);
@@ -513,7 +475,7 @@ function deterministicAnalysis(params: {
           params.answeredCount > 0 &&
           params.answeredCount % 2 === 1));
   const suggested_phase =
-    params.answeredCount >= MAX_QUESTIONS_PER_SESSION
+    params.answeredCount >= params.questionLimit
       ? "session_feedback"
       : shouldDeepDive
         ? "deep_dive"
@@ -781,6 +743,7 @@ export async function analyzeInterviewTurn(params: {
   mode: InterviewMode;
   currentPhase: AgentPhase;
   answeredCount: number;
+  questionLimit: number;
   weakSkills: string[];
 }): Promise<AnalyzerOutput> {
   if (shouldUseOpenAI()) {
@@ -788,7 +751,7 @@ export async function analyzeInterviewTurn(params: {
       const model = openAIModel(0).withStructuredOutput(analyzerGeminiSchema, {
         name: "InterviewTurnAnalysis"
       });
-      const result = await model.invoke(params.prompt);
+      const result = await model.invoke(params.prompt, { signal: aiAbortSignal() });
       const normalized = normalizeGeminiAnalyzerOutput(analyzerGeminiSchema.parse(result));
       logEvent("ai.analyzer.completed", {
         provider: "openai",
@@ -805,6 +768,7 @@ export async function analyzeInterviewTurn(params: {
         mode: params.mode,
         currentPhase: params.currentPhase,
         answeredCount: params.answeredCount,
+        questionLimit: params.questionLimit ?? DEFAULT_QUESTIONS_PER_SESSION,
         weakSkills: params.weakSkills
       });
       logEvent(
@@ -829,6 +793,7 @@ export async function analyzeInterviewTurn(params: {
       mode: params.mode,
       currentPhase: params.currentPhase,
       answeredCount: params.answeredCount,
+      questionLimit: params.questionLimit ?? DEFAULT_QUESTIONS_PER_SESSION,
       weakSkills: params.weakSkills
     });
     logEvent("ai.analyzer.completed", {
@@ -849,7 +814,7 @@ export async function analyzeInterviewTurn(params: {
           name: "InterviewTurnAnalysis",
           method: "jsonSchema"
         });
-        const result = await model.invoke(params.prompt);
+        const result = await model.invoke(params.prompt, { signal: aiAbortSignal() });
         return normalizeGeminiAnalyzerOutput(analyzerGeminiSchema.parse(result));
       }
     });
@@ -868,6 +833,7 @@ export async function analyzeInterviewTurn(params: {
       mode: params.mode,
       currentPhase: params.currentPhase,
       answeredCount: params.answeredCount,
+      questionLimit: params.questionLimit ?? DEFAULT_QUESTIONS_PER_SESSION,
       weakSkills: params.weakSkills
     });
     logEvent(
@@ -901,10 +867,7 @@ export async function generateInterviewerQuestion(params: {
 }) {
   const fallback = fallbackQuestion(params);
   const deterministicResult = (
-    reason:
-      | "provider_unavailable"
-      | "provider_error"
-      | "behavioral_guardrail_replacement"
+    reason: "provider_unavailable" | "provider_error"
   ) => ({
     ...fallback,
     source: "deterministic" as QuestionGenerationSource,
@@ -914,30 +877,8 @@ export async function generateInterviewerQuestion(params: {
   if (shouldUseOpenAI()) {
     try {
       const model = openAIModel(0.5);
-      const result = await model.invoke(params.prompt);
+      const result = await model.invoke(params.prompt, { signal: aiAbortSignal() });
       const content = textFromResponseContent(result.content as string | Array<{ text?: string }>);
-
-      if (
-        params.mode === "behavioral" &&
-        content &&
-        shouldReplaceBehavioralQuestion({
-          phase: params.phase,
-          answeredCount: params.answeredCount,
-          questionTypeHint: params.questionTypeHint,
-          generatedQuestion: content
-        })
-      ) {
-        const replacement = deterministicResult("behavioral_guardrail_replacement");
-        logEvent("ai.question.fallback", {
-          provider: "openai",
-          fallback_provider: replacement.source,
-          phase: params.phase,
-          answered_count: params.answeredCount,
-          question_type_hint: params.questionTypeHint ?? null,
-          fallback_reason: replacement.fallback_reason
-        });
-        return replacement;
-      }
 
       const generated = {
         question: content || fallback.question,
@@ -987,7 +928,7 @@ export async function generateInterviewerQuestion(params: {
     return await runGeminiWithFallback({
       temperature: 0.5,
       invoke: async (model) => {
-        const result = await model.invoke(params.prompt);
+        const result = await model.invoke(params.prompt, { signal: aiAbortSignal() });
         const content =
           typeof result.content === "string"
             ? result.content.trim()
@@ -995,28 +936,6 @@ export async function generateInterviewerQuestion(params: {
                 .map((part) => ("text" in part ? part.text : ""))
                 .join("")
                 .trim();
-
-        if (
-          params.mode === "behavioral" &&
-          content &&
-          shouldReplaceBehavioralQuestion({
-            phase: params.phase,
-            answeredCount: params.answeredCount,
-            questionTypeHint: params.questionTypeHint,
-            generatedQuestion: content
-          })
-        ) {
-          const replacement = deterministicResult("behavioral_guardrail_replacement");
-          logEvent("ai.question.fallback", {
-            provider: "gemini",
-            fallback_provider: replacement.source,
-            phase: params.phase,
-            answered_count: params.answeredCount,
-            question_type_hint: params.questionTypeHint ?? null,
-            fallback_reason: replacement.fallback_reason
-          });
-          return replacement;
-        }
 
         const generated = {
           question: content || fallback.question,
@@ -1059,7 +978,7 @@ export async function summarizeConversation(params: {
   if (shouldUseOpenAI()) {
     try {
       const model = openAIModel(0.2);
-      const result = await model.invoke(params.prompt);
+      const result = await model.invoke(params.prompt, { signal: aiAbortSignal() });
       const content = textFromResponseContent(result.content as string | Array<{ text?: string }>);
 
       return content || params.fallbackSummary;
@@ -1077,7 +996,7 @@ export async function summarizeConversation(params: {
     return await runGeminiWithFallback({
       temperature: 0.2,
       invoke: async (model) => {
-        const result = await model.invoke(params.prompt);
+        const result = await model.invoke(params.prompt, { signal: aiAbortSignal() });
         const content =
           typeof result.content === "string"
             ? result.content.trim()
@@ -1109,7 +1028,7 @@ export async function evaluateResponseWithProvider(params: {
       const model = openAIModel(0.2).withStructuredOutput(evaluationGeminiSchema, {
         name: "InterviewEvaluation"
       });
-      const result = await model.invoke(params.prompt);
+      const result = await model.invoke(params.prompt, { signal: aiAbortSignal() });
       return normalizeGeminiEvaluationOutput(
         evaluationGeminiSchema.parse(result),
         params.selfCritiqueEnabled
@@ -1132,7 +1051,7 @@ export async function evaluateResponseWithProvider(params: {
           name: "InterviewEvaluation",
           method: "jsonSchema"
         });
-        const result = await model.invoke(params.prompt);
+        const result = await model.invoke(params.prompt, { signal: aiAbortSignal() });
         return normalizeGeminiEvaluationOutput(
           evaluationGeminiSchema.parse(result),
           params.selfCritiqueEnabled

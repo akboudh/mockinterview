@@ -18,7 +18,12 @@ export function ConversationBubble({ message }: { message: Message }) {
       )}
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <Badge>{message.speaker_type}</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge>{message.speaker_type}</Badge>
+          {(message.meta as { opening_intro?: boolean } | undefined)?.opening_intro ? (
+            <Badge className="border-emerald-300/30 bg-emerald-400/10 text-emerald-100">Opening</Badge>
+          ) : null}
+        </div>
         <span className="text-xs uppercase tracking-[0.18em] text-white/38">
           {formatDateTime(message.created_at)}
         </span>

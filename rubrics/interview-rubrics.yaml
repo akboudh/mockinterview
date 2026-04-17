@@ -1,7 +1,7 @@
 version: 2
 global_default:
   rubric_id: global.default
-  description: Fallback rubric for clear, structured, relevant, and supportive interview answers.
+  description: Fallback rubric for answers that should be clear, evidence-based, structured, relevant, and supportive.
   role_context: []
   feedback_priorities:
     - structure
@@ -14,25 +14,25 @@ global_default:
     clarity:
       label: Clarity
       scale: 1-5
-      evaluator_prompt: Assess whether the answer is easy to follow and concise.
+      evaluator_prompt: Assess whether the answer is easy to follow, concise, and precise enough for an interviewer to trust the point being made.
       weak_skill_label: clear communication
       strength_skill_label: clear communication
     structure:
       label: Structure
       scale: 1-5
-      evaluator_prompt: Assess whether the answer follows an explicit logical sequence.
+      evaluator_prompt: Assess whether the answer follows an explicit logical sequence with a beginning, middle, and takeaway instead of drifting between points.
       weak_skill_label: story structure
       strength_skill_label: structured thinking
     relevance:
       label: Relevance
       scale: 1-5
-      evaluator_prompt: Assess whether the answer addresses the interview prompt directly.
+      evaluator_prompt: Assess whether the answer addresses the interview prompt directly and avoids generic filler that does not advance the response.
       weak_skill_label: answer relevance
       strength_skill_label: focused answers
     soft_skills:
       label: Soft skills
       scale: 1-5
-      evaluator_prompt: Assess collaboration, ownership, empathy, and communication quality.
+      evaluator_prompt: Assess collaboration, ownership, empathy, coachability, and communication quality.
       weak_skill_label: collaborative communication
       strength_skill_label: collaborative communication
   star_fields:
@@ -45,9 +45,11 @@ library:
     rubric_id: behavioral.default
     description: STAR-focused rubric for communication-heavy interview answers.
     role_context:
+      - Software Engineer Intern
       - Product Manager Intern
       - Business Analyst Intern
       - Operations Intern
+      - Customer Success Intern
     feedback_priorities:
       - structure
       - relevance
@@ -59,25 +61,25 @@ library:
       clarity:
         label: Clarity
         scale: 1-5
-        evaluator_prompt: Assess whether the answer is easy to follow and concise.
+        evaluator_prompt: Assess whether the candidate tells one coherent story with clear context, avoids rambling, and uses concrete language instead of vague claims.
         weak_skill_label: clear communication
         strength_skill_label: clear communication
       structure:
         label: Structure
         scale: 1-5
-        evaluator_prompt: Assess whether the answer uses a coherent flow and clearly signals STAR.
+        evaluator_prompt: Assess whether the answer uses a coherent STAR-style flow, clearly signals situation, task, action, and result, and makes the candidate's ownership easy to identify.
         weak_skill_label: story structure
         strength_skill_label: structured storytelling
       relevance:
         label: Relevance
         scale: 1-5
-        evaluator_prompt: Assess whether the answer directly addresses the question and target role.
+        evaluator_prompt: Assess whether the answer directly addresses the question, uses one concrete example, and makes the example relevant to the target role.
         weak_skill_label: role alignment
         strength_skill_label: role-aligned examples
       soft_skills:
         label: Soft skills
         scale: 1-5
-        evaluator_prompt: Assess communication, empathy, ownership, and collaboration.
+        evaluator_prompt: Assess communication, empathy, ownership, collaboration, stakeholder handling, and reflective judgment.
         weak_skill_label: collaborative communication
         strength_skill_label: collaborative communication
     star_fields:
@@ -92,9 +94,11 @@ library:
       - Software Engineer Intern
       - Data Engineer Intern
       - Platform Engineer Intern
+      - Machine Learning Engineer Intern
+      - Infrastructure Engineer Intern
     feedback_priorities:
-      - relevance
       - structure
+      - relevance
       - clarity
       - soft_skills
     weak_skill_threshold: 3
@@ -103,25 +107,25 @@ library:
       clarity:
         label: Clarity
         scale: 1-5
-        evaluator_prompt: Assess organization and terminology clarity.
+        evaluator_prompt: Assess whether the candidate explains technical concepts, assumptions, and terminology clearly enough for another engineer to follow.
         weak_skill_label: technical communication
         strength_skill_label: technical clarity
       structure:
         label: Structure
         scale: 1-5
-        evaluator_prompt: Assess whether the answer moves logically from requirements to design to tradeoffs.
+        evaluator_prompt: Assess whether the answer moves logically through requirements, approach, implementation details, tradeoffs, and validation rather than jumping between disconnected ideas.
         weak_skill_label: solution structure
         strength_skill_label: systematic reasoning
       relevance:
         label: Relevance
         scale: 1-5
-        evaluator_prompt: Assess whether the answer fits the technical prompt and role.
+        evaluator_prompt: Assess whether the answer fits the technical prompt and role, including relevant constraints, failure modes, debugging logic, or scalability reasoning when appropriate.
         weak_skill_label: tradeoff articulation
         strength_skill_label: tradeoff communication
       soft_skills:
         label: Soft skills
         scale: 1-5
-        evaluator_prompt: Assess communication quality, calmness, and collaboration signals.
+        evaluator_prompt: Assess communication quality, calmness under pressure, collaborative reasoning, and whether the candidate explains tradeoffs without sounding brittle or defensive.
         weak_skill_label: collaborative communication
         strength_skill_label: collaborative communication
     star_fields:
@@ -136,6 +140,8 @@ library:
       - Strategy Analyst Intern
       - Product Manager Intern
       - Consulting Candidate
+      - Growth Analyst Intern
+      - Business Operations Intern
     feedback_priorities:
       - structure
       - relevance
@@ -147,25 +153,25 @@ library:
       clarity:
         label: Clarity
         scale: 1-5
-        evaluator_prompt: Assess whether the candidate frames the problem cleanly.
+        evaluator_prompt: Assess whether the candidate frames the objective cleanly, states the problem in plain language, and keeps the listener oriented as the case progresses.
         weak_skill_label: executive communication
         strength_skill_label: executive clarity
       structure:
         label: Structure
         scale: 1-5
-        evaluator_prompt: Assess whether the candidate organizes assumptions, prioritization, and recommendation.
+        evaluator_prompt: Assess whether the candidate organizes the case with a clear structure such as framing, issue tree or buckets, assumptions, prioritization, and synthesis.
         weak_skill_label: problem framing
         strength_skill_label: structured problem solving
       relevance:
         label: Relevance
         scale: 1-5
-        evaluator_prompt: Assess whether the candidate keeps the response tied to the stated objective.
+        evaluator_prompt: Assess whether the candidate keeps the response tied to the stated objective, chooses sensible assumptions, uses metrics where useful, and lands on a recommendation that answers the question asked.
         weak_skill_label: recommendation alignment
         strength_skill_label: goal-focused synthesis
       soft_skills:
         label: Soft skills
         scale: 1-5
-        evaluator_prompt: Assess executive communication, judgment, and confidence.
+        evaluator_prompt: Assess executive communication, judgment, confidence, prioritization discipline, and the ability to synthesize without sounding scattered.
         weak_skill_label: stakeholder communication
         strength_skill_label: stakeholder communication
     star_fields:

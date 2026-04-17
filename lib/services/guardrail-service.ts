@@ -1,18 +1,21 @@
 import { readDb, updateDb } from "@/lib/db";
-import { loadGuardrailPolicy } from "@/lib/guardrails/policy-loader";
 import { publishRealtimeEvent } from "@/lib/realtime/event-bus";
+import {
+  finalizeSessionAfterSevereGuardrail,
+  shouldAutoEndSessionForGuardrails
+} from "@/lib/services/session-guardrail-end";
+import {
+  createGuardrailProvider,
+  type GuardrailInspectionRequest,
+  type GuardrailMatch,
+  type GuardrailProvider
+} from "@/lib/guardrails/provider";
 import { saveEvent } from "@/lib/services/memory-service";
-import type { FlagCategory, FlagEvent, GuardrailRuntimePolicy } from "@/lib/types";
-
-interface GuardrailMatch {
-  policy_id: string;
-  flag_reason: string;
-  flag_category: FlagCategory;
-  severity: "low" | "medium" | "high";
-  labels: string[];
-}
+import { loadGuardrailPolicy } from "@/lib/guardrails/policy-loader";
+import type { FlagEvent, GuardrailRuntimePolicy } from "@/lib/types";
 
 interface GuardrailServiceDeps {
+  provider: GuardrailProvider;
   loadPolicy: () => GuardrailRuntimePolicy;
   readDb: typeof readDb;
   updateDb: typeof updateDb;
@@ -23,8 +26,11 @@ interface GuardrailServiceDeps {
 }
 
 function withGuardrailDeps(overrides: Partial<GuardrailServiceDeps> = {}): GuardrailServiceDeps {
+  const loadPolicy = overrides.loadPolicy ?? loadGuardrailPolicy;
+
   return {
-    loadPolicy: loadGuardrailPolicy,
+    provider: overrides.provider ?? createGuardrailProvider({ loadPolicy }),
+    loadPolicy,
     readDb,
     updateDb,
     saveEvent,
@@ -35,24 +41,12 @@ function withGuardrailDeps(overrides: Partial<GuardrailServiceDeps> = {}): Guard
   };
 }
 
-export function inspectForGuardrails(text: string, deps: Partial<GuardrailServiceDeps> = {}) {
+export async function inspectForGuardrails(
+  params: GuardrailInspectionRequest,
+  deps: Partial<GuardrailServiceDeps> = {}
+) {
   const resolvedDeps = withGuardrailDeps(deps);
-  const policy = resolvedDeps.loadPolicy();
-  const findings: GuardrailMatch[] = [];
-
-  for (const rule of policy.policies) {
-    if (rule.matchers.some((pattern) => pattern.test(text))) {
-      findings.push({
-        policy_id: rule.id,
-        flag_reason: rule.description,
-        flag_category: rule.category,
-        severity: rule.severity,
-        labels: rule.labels
-      });
-    }
-  }
-
-  return findings;
+  return resolvedDeps.provider.inspect(params);
 }
 
 export async function recordGuardrailFlags(params: {
@@ -60,6 +54,8 @@ export async function recordGuardrailFlags(params: {
   user_id?: string | null;
   message_id?: string | null;
   findings: GuardrailMatch[];
+  /** When true (e.g. student answer path), severe flags can end the session automatically. */
+  allowSessionTermination?: boolean;
 }, deps: Partial<GuardrailServiceDeps> = {}) {
   const resolvedDeps = withGuardrailDeps(deps);
   if (!params.findings.length) {
@@ -160,6 +156,13 @@ export async function recordGuardrailFlags(params: {
       created_at: resolvedDeps.now(),
       payload: basePayload
     });
+  }
+
+  if (
+    params.allowSessionTermination &&
+    shouldAutoEndSessionForGuardrails(params.findings)
+  ) {
+    await finalizeSessionAfterSevereGuardrail(params.session_id);
   }
 
   return createdFlags;

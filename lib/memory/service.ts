@@ -1,4 +1,9 @@
 import { LocalSemanticEmbeddings } from "@/lib/memory/embeddings";
+import {
+  type MemoryEmbeddings,
+  type SemanticMemoryRetrieverFactory
+} from "@/lib/memory/contracts";
+import { buildLangChainShortTermContext } from "@/lib/memory/langchain-short-term";
 import { MemoryRepository, type EditableMemoryEventFields } from "@/lib/memory/repository";
 import { MemoryEventRetriever } from "@/lib/memory/retriever";
 import { buildMemoryEmbeddingText, deriveSessionMetadata } from "@/lib/memory/text";
@@ -69,14 +74,19 @@ function signalToContext(signal: SkillSignal): RecalledContextItem {
 
 export class MemoryService {
   readonly repository: MemoryRepository;
-  readonly embeddings: LocalSemanticEmbeddings;
+  readonly embeddings: MemoryEmbeddings;
+  readonly createRetriever: SemanticMemoryRetrieverFactory;
 
   constructor(params: {
     repository?: MemoryRepository;
-    embeddings?: LocalSemanticEmbeddings;
+    embeddings?: MemoryEmbeddings;
+    createRetriever?: SemanticMemoryRetrieverFactory;
   } = {}) {
     this.repository = params.repository ?? new MemoryRepository();
     this.embeddings = params.embeddings ?? new LocalSemanticEmbeddings();
+    this.createRetriever =
+      params.createRetriever ??
+      ((retrieverParams) => new MemoryEventRetriever(retrieverParams));
   }
 
   private async buildVectorRecord(event: MemoryEvent) {
@@ -169,10 +179,12 @@ export class MemoryService {
     const queryText = params.query_text ?? "";
     const shortTermItems =
       params.session_id && (params.query_type === "short_term" || params.query_type === "mixed")
-        ? await this.repository.getShortTermContext(params.session_id)
+        ? await buildLangChainShortTermContext(
+            await this.repository.getShortTermContext(params.session_id)
+          )
         : [];
 
-    const retriever = new MemoryEventRetriever({
+    const retriever = this.createRetriever({
       repository: this.repository,
       embeddings: this.embeddings,
       userId: params.user_id,

@@ -5,6 +5,7 @@ import path from "path";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 
 import { DB_PATH } from "@/lib/constants";
+import { withDbWriteLock } from "@/lib/db-lock";
 import {
   authSessionsTable,
   agentSessionStatesTable,
@@ -14,6 +15,7 @@ import {
   memoryEventsTable,
   memoryVectorsTable,
   mentorInterventionsTable,
+  mentorDirectMessagesTable,
   messagesTable,
   sessionsTable,
   skillSignalsTable,
@@ -27,6 +29,7 @@ import type {
   FlagEvent,
   MemoryEvent,
   MemoryVectorRecord,
+  MentorDirectMessage,
   MentorIntervention,
   Message,
   MockInterviewDB,
@@ -54,16 +57,17 @@ function emptyDb(): MockInterviewDB {
     skillSignals: [],
     flags: [],
     mentorInterventions: [],
+    mentorDirectMessages: [],
     agentSessionStates: [],
     conversationSummaries: []
   };
 }
 
-function toJson(value: unknown) {
+export function toJson(value: unknown) {
   return JSON.stringify(value ?? null);
 }
 
-function fromJson<T>(value: string | null | undefined, fallback: T): T {
+export function fromJson<T>(value: string | null | undefined, fallback: T): T {
   if (!value) {
     return fallback;
   }
@@ -75,11 +79,11 @@ function fromJson<T>(value: string | null | undefined, fallback: T): T {
   }
 }
 
-function toBoolean(value: number) {
+export function toBoolean(value: number) {
   return value === 1;
 }
 
-function fromBoolean(value: boolean | null | undefined) {
+export function fromBoolean(value: boolean | null | undefined) {
   return value ? 1 : 0;
 }
 
@@ -94,13 +98,37 @@ function getSqlitePath() {
   return path.isAbsolute(resolved) ? resolved : path.join(process.cwd(), resolved);
 }
 
+const SQLITE_JOURNAL_MODES = new Set(["wal", "delete", "truncate", "persist", "memory"]);
+
+/** Long timeout helps when several Next dev processes share one DB file. */
+const SQLITE_BUSY_MS = Math.min(
+  Math.max(Number(process.env.SQLITE_BUSY_MS ?? "60000") || 60000, 1000),
+  120_000
+);
+
+function applySqlitePragmas(db: Database.Database) {
+  db.pragma(`busy_timeout = ${SQLITE_BUSY_MS}`);
+
+  const fromEnv = process.env.SQLITE_JOURNAL_MODE?.trim().toLowerCase();
+  if (fromEnv && SQLITE_JOURNAL_MODES.has(fromEnv)) {
+    db.pragma(`journal_mode = ${fromEnv.toUpperCase()}`);
+  } else {
+    try {
+      db.pragma("journal_mode = WAL");
+    } catch {
+      db.pragma("journal_mode = DELETE");
+    }
+  }
+
+  db.pragma("foreign_keys = ON");
+}
+
 function getSqlite() {
   if (!sqlite) {
     const sqlitePath = getSqlitePath();
     mkdirSync(path.dirname(sqlitePath), { recursive: true });
-    sqlite = new Database(sqlitePath);
-    sqlite.pragma("journal_mode = WAL");
-    sqlite.pragma("foreign_keys = ON");
+    sqlite = new Database(sqlitePath, { timeout: SQLITE_BUSY_MS });
+    applySqlitePragmas(sqlite);
   }
 
   return sqlite;
@@ -153,6 +181,8 @@ function ensureSchema() {
       target_role TEXT NOT NULL,
       focus_area TEXT,
       confidence_self_rating INTEGER,
+      question_limit INTEGER,
+      question_time_limit_seconds INTEGER,
       status TEXT NOT NULL,
       started_at TEXT NOT NULL,
       ended_at TEXT,
@@ -269,6 +299,18 @@ function ensureSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_interventions_session ON mentor_interventions (session_id);
 
+    CREATE TABLE IF NOT EXISTS mentor_direct_messages (
+      dm_id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL,
+      to_user_id TEXT NOT NULL,
+      session_id TEXT,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      read_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_dm_to_user ON mentor_direct_messages (to_user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_dm_from_user ON mentor_direct_messages (from_user_id, created_at);
+
     CREATE TABLE IF NOT EXISTS agent_session_state (
       session_id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -303,6 +345,11 @@ function ensureSchema() {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_conversation_summaries_session ON conversation_summaries (session_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL
+    );
   `);
 
   const sessionColumns = (
@@ -320,6 +367,14 @@ function ensureSchema() {
 
   if (!sessionColumns.includes("resume_text")) {
     db.exec("ALTER TABLE sessions ADD COLUMN resume_text TEXT;");
+  }
+
+  if (!sessionColumns.includes("question_time_limit_seconds")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN question_time_limit_seconds INTEGER;");
+  }
+
+  if (!sessionColumns.includes("question_limit")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN question_limit INTEGER;");
   }
 
   if (!userColumns.includes("email")) {
@@ -380,7 +435,8 @@ function normalizeDb(nextDb: MockInterviewDB): MockInterviewDB {
     authSessions: nextDb.authSessions ?? [],
     agentSessionStates: nextDb.agentSessionStates ?? [],
     conversationSummaries: nextDb.conversationSummaries ?? [],
-    memoryVectors: nextDb.memoryVectors ?? []
+    memoryVectors: nextDb.memoryVectors ?? [],
+    mentorDirectMessages: nextDb.mentorDirectMessages ?? []
   };
 }
 
@@ -426,10 +482,7 @@ function buildImportedAgentState(session: InterviewSession, db: MockInterviewDB)
     })),
     guardrail_findings: [],
     flagged: session.status === "flagged",
-    mentor_takeover_active: db.mentorInterventions.some(
-      (entry) =>
-        entry.session_id === session.session_id && entry.intervention_type === "takeover"
-    ),
+    mentor_takeover_active: false,
     state_json: {
       imported_from_json: true,
       current_phase
@@ -499,6 +552,8 @@ function mapSessions(rows: Array<Record<string, unknown>>): InterviewSession[] {
     target_role: String(row.target_role),
     focus_area: (row.focus_area as string | null) ?? null,
     confidence_self_rating: (row.confidence_self_rating as number | null) ?? null,
+    question_limit: (row.question_limit as number | null) ?? null,
+    question_time_limit_seconds: (row.question_time_limit_seconds as number | null) ?? null,
     status: row.status as InterviewSession["status"],
     started_at: String(row.started_at),
     ended_at: (row.ended_at as string | null) ?? null,
@@ -623,6 +678,18 @@ function mapMentorInterventions(rows: Array<Record<string, unknown>>): MentorInt
   }));
 }
 
+function mapMentorDirectMessages(rows: Array<Record<string, unknown>>): MentorDirectMessage[] {
+  return rows.map((row) => ({
+    dm_id: String(row.dm_id),
+    from_user_id: String(row.from_user_id),
+    to_user_id: String(row.to_user_id),
+    session_id: (row.session_id as string | null) ?? null,
+    body: String(row.body),
+    created_at: String(row.created_at),
+    read_at: (row.read_at as string | null) ?? null
+  }));
+}
+
 function mapAgentStates(rows: Array<Record<string, unknown>>): AgentSessionState[] {
   return rows.map((row) => ({
     session_id: String(row.session_id),
@@ -692,6 +759,9 @@ export async function readDb(): Promise<MockInterviewDB> {
   const mentorInterventions = mapMentorInterventions(
     db.select().from(mentorInterventionsTable).all() as Array<Record<string, unknown>>
   );
+  const mentorDirectMessages = mapMentorDirectMessages(
+    db.select().from(mentorDirectMessagesTable).all() as Array<Record<string, unknown>>
+  );
   const agentSessionStates = mapAgentStates(
     db.select().from(agentSessionStatesTable).all() as Array<Record<string, unknown>>
   );
@@ -710,6 +780,7 @@ export async function readDb(): Promise<MockInterviewDB> {
     skillSignals,
     flags,
     mentorInterventions,
+    mentorDirectMessages,
     agentSessionStates,
     conversationSummaries
   };
@@ -718,6 +789,7 @@ export async function readDb(): Promise<MockInterviewDB> {
 function clearAllTables(tx: BetterSQLite3Database) {
   tx.delete(conversationSummariesTable).run();
   tx.delete(agentSessionStatesTable).run();
+  tx.delete(mentorDirectMessagesTable).run();
   tx.delete(mentorInterventionsTable).run();
   tx.delete(flagsTable).run();
   tx.delete(skillSignalsTable).run();
@@ -783,6 +855,8 @@ export async function writeDb(nextDb: MockInterviewDB) {
             target_role: session.target_role,
             focus_area: session.focus_area ?? null,
             confidence_self_rating: session.confidence_self_rating ?? null,
+            question_limit: session.question_limit ?? null,
+            question_time_limit_seconds: session.question_time_limit_seconds ?? null,
             status: session.status,
             started_at: session.started_at,
             ended_at: session.ended_at ?? null,
@@ -936,6 +1010,22 @@ export async function writeDb(nextDb: MockInterviewDB) {
         .run();
     }
 
+    if (normalized.mentorDirectMessages.length) {
+      tx.insert(mentorDirectMessagesTable)
+        .values(
+          normalized.mentorDirectMessages.map((dm) => ({
+            dm_id: dm.dm_id,
+            from_user_id: dm.from_user_id,
+            to_user_id: dm.to_user_id,
+            session_id: dm.session_id ?? null,
+            body: dm.body,
+            created_at: dm.created_at,
+            read_at: dm.read_at ?? null
+          }))
+        )
+        .run();
+    }
+
     if (normalized.agentSessionStates.length) {
       tx.insert(agentSessionStatesTable)
         .values(
@@ -987,11 +1077,24 @@ export async function writeDb(nextDb: MockInterviewDB) {
 export async function updateDb(
   updater: (db: MockInterviewDB) => MockInterviewDB | Promise<MockInterviewDB>
 ) {
-  await ensureInitialized();
-  const current = await readDb();
-  const updated = await updater(current);
-  await writeDb(updated);
-  return updated;
+  return withDbWriteLock(async () => {
+    await ensureInitialized();
+    const current = await readDb();
+    const updated = await updater(current);
+    await writeDb(updated);
+    return updated;
+  });
+}
+
+/** Row-level writes inside a single SQLite transaction (serialized with {@link updateDb}). */
+export async function runIncrementalTransaction<T>(
+  fn: (tx: BetterSQLite3Database) => T
+): Promise<T> {
+  return withDbWriteLock(async () => {
+    await ensureInitialized();
+    const db = getOrm();
+    return db.transaction(fn);
+  });
 }
 
 export async function resetSqliteFromJson() {

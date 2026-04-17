@@ -22,8 +22,13 @@ export async function GET(request: Request) {
     const scope = url.searchParams.get("scope")?.trim() || "session";
     const sessionId = url.searchParams.get("session_id")?.trim() || null;
 
+    let userScopeUserId: string | null = null;
+
     if (scope === "mentor") {
       await requireMentorApiUser();
+    } else if (scope === "user") {
+      const user = await requireApiUser();
+      userScopeUserId = user.user_id;
     } else {
       const user = await requireApiUser();
       if (!sessionId) {
@@ -38,8 +43,9 @@ export async function GET(request: Request) {
           event_id: crypto.randomUUID(),
           type: "stream.connected",
           session_id: sessionId,
-          user_id: null,
-          audience: scope === "mentor" ? "mentor" : "session",
+          user_id: userScopeUserId,
+          audience:
+            scope === "mentor" ? "mentor" : scope === "user" ? "user" : "session",
           created_at: new Date().toISOString(),
           payload: {
             scope,
@@ -53,6 +59,10 @@ export async function GET(request: Request) {
           filter: (event) => {
             if (scope === "mentor") {
               return event.audience === "mentor";
+            }
+
+            if (scope === "user" && userScopeUserId) {
+              return event.audience === "user" && event.user_id === userScopeUserId;
             }
 
             return event.audience === "session" && event.session_id === sessionId;

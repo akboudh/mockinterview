@@ -8,6 +8,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sora)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-space)", "var(--font-sora)", "ui-sans-serif", "sans-serif"]
+      },
       colors: {
         ink: "#09111f",
         mist: "#d9f6ff",

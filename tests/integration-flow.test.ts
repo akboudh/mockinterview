@@ -16,6 +16,8 @@ describe("integration flow", () => {
       mode: "behavioral",
       focus_area: "leadership",
       confidence_self_rating: 4,
+      question_limit: 7,
+      question_time_limit_seconds: 60,
       personalization_enabled: true,
       self_critique_enabled: true,
       notes: "Integration flow test",
@@ -52,6 +54,12 @@ describe("integration flow", () => {
     expect(
       db.sessions.find((entry) => entry.session_id === session.session_id)?.resume_text
     ).toContain("student marketplace launch");
+    expect(
+      db.sessions.find((entry) => entry.session_id === session.session_id)?.question_limit
+    ).toBe(7);
+    expect(
+      db.sessions.find((entry) => entry.session_id === session.session_id)?.question_time_limit_seconds
+    ).toBe(60);
     expect(db.evaluations.some((entry) => entry.session_id === session.session_id)).toBe(true);
     expect(db.agentSessionStates.some((entry) => entry.session_id === session.session_id)).toBe(true);
   });

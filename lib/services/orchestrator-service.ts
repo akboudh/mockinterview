@@ -1,4 +1,5 @@
-import { MAX_QUESTIONS_PER_SESSION } from "@/lib/constants";
+import { DEFAULT_QUESTIONS_PER_SESSION } from "@/lib/constants";
+import { incrementalPersistAskQuestion } from "@/lib/db-incremental";
 import { readDb, updateDb } from "@/lib/db";
 import {
   createConversationSummaryRecord,
@@ -21,48 +22,6 @@ import type {
   MockInterviewDB,
   RecalledContextItem
 } from "@/lib/types";
-
-export interface AskQuestionDeps {
-  readDb: typeof readDb;
-  updateDb: typeof updateDb;
-  recallContext: typeof recallContext;
-  getWeakSkills: typeof getWeakSkills;
-  saveEvent: typeof saveEvent;
-  recordGuardrailFlags: typeof recordGuardrailFlags;
-  endSession: typeof endSession;
-  hydrateRuntimeState: typeof hydrateRuntimeState;
-  runInterviewGraph: typeof runInterviewGraph;
-  persistRuntimeState: typeof persistRuntimeState;
-  createConversationSummaryRecord: typeof createConversationSummaryRecord;
-  inspectForGuardrails: typeof inspectForGuardrails;
-}
-
-const defaultAskQuestionDeps: AskQuestionDeps = {
-  readDb,
-  updateDb,
-  recallContext,
-  getWeakSkills,
-  saveEvent,
-  recordGuardrailFlags,
-  endSession,
-  hydrateRuntimeState,
-  runInterviewGraph,
-  persistRuntimeState,
-  createConversationSummaryRecord,
-  inspectForGuardrails
-};
-
-export interface PreparedAskQuestionInput {
-  session: InterviewSession;
-  messages: Message[];
-  persistedState?: AgentSessionState | null;
-  weakSkills: string[];
-  recalledContextItems: RecalledContextItem[];
-  latestAnswer: string | null;
-  mentorTakeoverActive: boolean;
-  flagged: boolean;
-  persistedMessageCount: number;
-}
 
 export interface ComputedAskQuestionResult {
   payload: {
@@ -87,6 +46,73 @@ export interface ComputedAskQuestionResult {
     severity: "low" | "medium" | "high";
     labels: string[];
   }>;
+}
+
+export interface AskQuestionDeps {
+  readDb: typeof readDb;
+  updateDb: typeof updateDb;
+  /** Defaults to row-level SQLite writes; tests override with in-memory snapshot updates. */
+  persistAskQuestionWrite?: (result: ComputedAskQuestionResult) => Promise<void>;
+  recallContext: typeof recallContext;
+  getWeakSkills: typeof getWeakSkills;
+  saveEvent: typeof saveEvent;
+  recordGuardrailFlags: typeof recordGuardrailFlags;
+  endSession: typeof endSession;
+  hydrateRuntimeState: typeof hydrateRuntimeState;
+  runInterviewGraph: typeof runInterviewGraph;
+  persistRuntimeState: typeof persistRuntimeState;
+  createConversationSummaryRecord: typeof createConversationSummaryRecord;
+  inspectForGuardrails: typeof inspectForGuardrails;
+}
+
+async function defaultPersistAskQuestionWrite(result: ComputedAskQuestionResult) {
+  const sessionFeedbackReason = describeSessionFeedbackReason({
+    previousPhase: result.nextRuntimeState.previous_phase,
+    nextPhase: result.nextRuntimeState.current_phase,
+    analyzerSuggestedPhase: result.nextRuntimeState.suggested_phase
+  });
+  const mergedState: AgentSessionState = {
+    ...result.nextRuntimeState,
+    state_json: {
+      ...result.nextRuntimeState.state_json,
+      session_end_reason: sessionFeedbackReason
+    }
+  };
+  await incrementalPersistAskQuestion({
+    message: result.message,
+    session: result.session,
+    nextRuntimeState: mergedState,
+    summaryRecord: result.summaryRecord,
+    findingsLength: result.findings.length
+  });
+}
+
+const defaultAskQuestionDeps: AskQuestionDeps = {
+  readDb,
+  updateDb,
+  persistAskQuestionWrite: defaultPersistAskQuestionWrite,
+  recallContext,
+  getWeakSkills,
+  saveEvent,
+  recordGuardrailFlags,
+  endSession,
+  hydrateRuntimeState,
+  runInterviewGraph,
+  persistRuntimeState,
+  createConversationSummaryRecord,
+  inspectForGuardrails
+};
+
+export interface PreparedAskQuestionInput {
+  session: InterviewSession;
+  messages: Message[];
+  persistedState?: AgentSessionState | null;
+  weakSkills: string[];
+  recalledContextItems: RecalledContextItem[];
+  latestAnswer: string | null;
+  mentorTakeoverActive: boolean;
+  flagged: boolean;
+  persistedMessageCount: number;
 }
 
 function describeSessionFeedbackReason(params: {
@@ -133,6 +159,7 @@ function buildSessionFromContext(params: {
   session_id: string;
   user_id: string;
   context: AskQuestionContext;
+  persistedQuestionLimit: number | null;
 }): InterviewSession {
   return {
     session_id: params.session_id,
@@ -141,6 +168,7 @@ function buildSessionFromContext(params: {
     target_role: params.context.target_role,
     focus_area: params.context.focus_area ?? null,
     confidence_self_rating: null,
+    question_limit: params.context.question_limit ?? params.persistedQuestionLimit,
     status: params.context.session_status,
     started_at: new Date(0).toISOString(),
     ended_at: null,
@@ -222,9 +250,11 @@ async function resolveAskQuestionInput(
     ? buildSessionFromContext({
         session_id: params.session_id,
         user_id: params.user_id,
-        context: params.context
+        context: params.context,
+        persistedQuestionLimit: persistedSession.question_limit ?? null
       })
     : persistedSession;
+  const questionLimit = session.question_limit ?? DEFAULT_QUESTIONS_PER_SESSION;
 
   const persistedMessages = db.messages
     .filter((entry) => entry.session_id === session.session_id)
@@ -234,14 +264,14 @@ async function resolveAskQuestionInput(
     : persistedMessages;
   const answeredCount = messages.filter((entry) => entry.speaker_type === "student").length;
 
-  if (answeredCount >= MAX_QUESTIONS_PER_SESSION) {
+  if (answeredCount >= questionLimit) {
     logEvent("orchestrator.question_limit_reached", {
       session_id: session.session_id,
       answered_count: answeredCount,
-      max_questions: MAX_QUESTIONS_PER_SESSION
+      max_questions: questionLimit
     });
     await deps.endSession(session.session_id, "question_limit_reached");
-    throw new Error("Session has reached the MVP question limit.");
+    throw new Error("Session has reached the configured question limit.");
   }
 
   const weakSkills =
@@ -280,11 +310,7 @@ async function resolveAskQuestionInput(
       recalledContextItems: recalledContext.context_items,
       latestAnswer,
       mentorTakeoverActive:
-        params.context?.mentor_takeover_active ??
-        db.mentorInterventions.some(
-          (entry) =>
-            entry.session_id === session.session_id && entry.intervention_type === "takeover"
-        ),
+        params.context?.mentor_takeover_active ?? false,
       flagged:
         params.context?.flagged ??
         (session.status === "flagged" ||
@@ -355,7 +381,11 @@ export async function computeNextQuestion(
     }
   };
 
-  const findings = deps.inspectForGuardrails(questionText);
+  const findings = await deps.inspectForGuardrails({
+    text: questionText,
+    source: "interviewer",
+    session_id: input.session.session_id
+  });
   const finalizedRuntime = {
     ...runtimeResult,
     currentQuestionId: message.message_id,
@@ -421,19 +451,18 @@ export async function computeNextQuestion(
   };
 }
 
-async function persistAskQuestionResult(params: {
-  db: MockInterviewDB;
-  result: ComputedAskQuestionResult;
-  deps: AskQuestionDeps;
-}) {
-  const { db, result, deps } = params;
+/** In-memory snapshot merge for tests and tooling (production uses incremental SQLite writes). */
+export function mergePersistAskQuestionIntoDb(
+  currentDb: MockInterviewDB,
+  result: ComputedAskQuestionResult
+): MockInterviewDB {
   const sessionFeedbackReason = describeSessionFeedbackReason({
     previousPhase: result.nextRuntimeState.previous_phase,
     nextPhase: result.nextRuntimeState.current_phase,
     analyzerSuggestedPhase: result.nextRuntimeState.suggested_phase
   });
 
-  await deps.updateDb((currentDb) => ({
+  return {
     ...currentDb,
     sessions: currentDb.sessions.map((entry) =>
       entry.session_id === result.session.session_id
@@ -480,7 +509,23 @@ async function persistAskQuestionResult(params: {
     conversationSummaries: result.summaryRecord
       ? [...currentDb.conversationSummaries, result.summaryRecord]
       : currentDb.conversationSummaries
-  }));
+  };
+}
+
+async function persistAskQuestionResult(params: {
+  db: MockInterviewDB;
+  result: ComputedAskQuestionResult;
+  deps: AskQuestionDeps;
+}) {
+  const { db, result, deps } = params;
+  const sessionFeedbackReason = describeSessionFeedbackReason({
+    previousPhase: result.nextRuntimeState.previous_phase,
+    nextPhase: result.nextRuntimeState.current_phase,
+    analyzerSuggestedPhase: result.nextRuntimeState.suggested_phase
+  });
+
+  const writer = deps.persistAskQuestionWrite ?? defaultPersistAskQuestionWrite;
+  await writer(result);
 
   await deps.saveEvent({
     session_id: result.session.session_id,

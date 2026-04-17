@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 
 import { Annotation, Command, END, START, StateGraph } from "@langchain/langgraph";
 
-import { MAX_QUESTIONS_PER_SESSION } from "@/lib/constants";
+import { DEFAULT_QUESTIONS_PER_SESSION } from "@/lib/constants";
 import {
   getAllowedTargets,
   getPhaseSkill,
@@ -45,6 +45,7 @@ interface RuntimeState {
   personalizationEnabled: boolean;
   selfCritiqueEnabled: boolean;
   recalledContextSummary: string | null;
+  questionLimit: number;
   currentPhase: AgentPhase;
   previousPhase: AgentPhase | null;
   turnCount: number;
@@ -92,6 +93,7 @@ const RuntimeAnnotation = Annotation.Root({
   personalizationEnabled: Annotation<boolean>(),
   selfCritiqueEnabled: Annotation<boolean>(),
   recalledContextSummary: Annotation<string | null>(),
+  questionLimit: Annotation<number>(),
   currentPhase: Annotation<AgentPhase>(),
   previousPhase: Annotation<AgentPhase | null>(),
   turnCount: Annotation<number>(),
@@ -208,6 +210,7 @@ async function analyzerNode(state: RuntimeState) {
     mode: state.mode,
     currentPhase: state.analysisPhase,
     answeredCount: state.answeredCount,
+    questionLimit: state.questionLimit,
     weakSkills: state.weakSkills
   });
 
@@ -259,7 +262,7 @@ async function stateUpdaterNode(state: RuntimeState) {
   }
 
   if (
-    state.answeredCount >= MAX_QUESTIONS_PER_SESSION ||
+    state.answeredCount >= state.questionLimit ||
     state.currentPhase === "session_feedback"
   ) {
     nextPhase = "session_feedback";
@@ -488,6 +491,7 @@ export function hydrateRuntimeState(params: {
     personalizationEnabled: params.session.personalization_enabled,
     selfCritiqueEnabled: params.session.self_critique_enabled,
     recalledContextSummary: params.session.recalled_context_summary ?? null,
+    questionLimit: params.session.question_limit ?? DEFAULT_QUESTIONS_PER_SESSION,
     currentPhase: persisted.current_phase,
     previousPhase: persisted.previous_phase ?? null,
     turnCount: persisted.turn_count,

@@ -1,5 +1,14 @@
 version: 1
 policies:
+  - id: dev-guardrail-trigger
+    category: safety
+    description: Development-only phrase to verify guardrail plumbing end-to-end.
+    severity: high
+    labels:
+      - dev
+      - verification
+    patterns:
+      - /\bguardrail(_|-)?test\b/i
   - id: protected-class-questions
     category: bias
     description: Prevent questions or feedback about protected characteristics.
@@ -9,6 +18,13 @@ policies:
       - hiring-compliance
     patterns:
       - age
+      - race
+      - ethnicity
+      - gender
+      - gender identity
+      - sexual orientation
+      - pregnancy
+      - national origin
       - religion
       - marital status
       - disability
@@ -22,6 +38,12 @@ policies:
     patterns:
       - social security
       - ssn
+      - date of birth
+      - home address
+      - passport number
+      - bank account
+      - diagnosis
+      - medications
       - medical history
   - id: hostile-tone
     category: toxicity
@@ -31,10 +53,29 @@ policies:
       - tone
       - psychological-safety
     patterns:
+      - idiot
+      - dumb
+      - incompetent
       - stupid
       - worthless
+      - useless
+      - garbage
+      - loser
+      - fraud
       - pathetic
       - terrible
+  - id: abusive-profanity
+    category: toxicity
+    description: Prevent profanity used as a direct insult or degrading judgment.
+    severity: medium
+    labels:
+      - tone
+      - abusive-language
+      - psychological-safety
+    patterns:
+      - /you('| a)?re (a )?(fucking|fuckin|damn|goddamn)?\s*(idiot|moron|loser|pathetic|useless|garbage)/i
+      - /that (answer|response|story|idea) is (fucking|fuckin|bullshit|shit|trash|garbage)/i
+      - /\b(full of shit|piece of shit|dumb as hell)\b/i
   - id: demoralizing-feedback
     category: demoralizing_feedback
     description: Prevent destructive, hopeless framing in feedback.
@@ -45,7 +86,30 @@ policies:
     patterns:
       - you will fail
       - no chance
+      - hopeless
+      - give up
+      - never be good enough
+      - not capable of
       - not cut out for
+  - id: self-harm-or-violence
+    category: safety
+    description: Prevent self-harm, suicide, or violent harm language.
+    severity: high
+    labels:
+      - crisis
+      - escalation
+    patterns:
+      - kill yourself
+      - kill myself
+      - hurt yourself
+      - self harm
+      - suicide
+      - harm someone
+      - /\b(i('| a)?m|i am) (going to|gonna) (kill|hurt) (myself|someone|him|her|them)\b/i
+      - /\b(i (really )?(want to|wanna) (kill|hurt) myself)\b/i
+      - /\b(i('| a)?m|i am) suicidal\b/i
+      - /\b(i('| a)?m|i am) going to die\b/i
+      - /\b(i('| a)?m|i am) going to (shoot|stab) (someone|him|her|them)\b/i
 fallback_behavior:
   user_message: Keep the tone calm and constructive, log the event, and continue with a safe alternative prompt.
   mentor_visibility: Always preserve transcript context and flag metadata for dashboard review.

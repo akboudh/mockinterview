@@ -1,218 +1,141 @@
 import Link from "next/link";
-import { ArrowRight, ShieldCheck, Sparkles, WandSparkles } from "lucide-react";
+import { ArrowRight, CircleDashed, ShieldCheck, Sparkles, WandSparkles } from "lucide-react";
 
 import { Reveal } from "@/components/motion/reveal";
-import { ModeSelectionCard } from "@/components/mode-selection-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SectionShell } from "@/components/ui/section-shell";
-import { INTERVIEW_MODES } from "@/lib/constants";
 
 const landingStats = [
-  { label: "Interview modes", value: "3", hint: "Behavioral, Technical, Case" },
-  { label: "Memory layers", value: "3", hint: "Short-term, episodic, long-term" },
-  { label: "Mentor workflows", value: "2", hint: "Review and live takeover" }
+  { label: "Modes", value: "3", hint: "Behavioral, technical, and case interviews" },
+  { label: "Memory layers", value: "3", hint: "Short-term, episodic, and long-term context" },
+  { label: "Mentor paths", value: "2", hint: "Async review and live takeover" }
+];
+
+const workflowSteps = [
+  {
+    icon: Sparkles,
+    step: "01",
+    title: "Brief the interviewer",
+    copy: "Set the role, pacing, and optional resume context before the session starts."
+  },
+  {
+    icon: CircleDashed,
+    step: "02",
+    title: "Practice with adaptive follow-ups",
+    copy: "Questions react to your answers instead of following a fixed script."
+  }
 ];
 
 export default function HomePage() {
   return (
-    <main className="page-shell py-8 pb-20 md:py-12">
-      <Reveal>
-        <section className="grid-fade premium-panel relative overflow-hidden rounded-[44px] px-6 py-12 md:px-10 md:py-14">
-          <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-sky-300/10 blur-3xl" />
-          <div className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
-            <div className="max-w-3xl">
-              <p className="text-xs uppercase tracking-[0.32em] text-white/48">
-                Mock Interview Preparation Agent for Career-Ready Students
-              </p>
-              <h1 className="mt-5 text-5xl font-semibold tracking-[-0.06em] text-white md:text-7xl">
-                Premium mock interviews that adapt, remember, evaluate, and coach.
+    <main className="page-shell page-shell-wide pt-2 pb-12 md:pt-3 md:pb-10">
+      <Reveal y={16}>
+        <section className="premium-panel hero-glow panel-grid relative overflow-hidden rounded-[48px] px-6 py-6 md:px-10 md:py-8">
+          <div className="pointer-events-none absolute right-[-8%] top-[-12%] h-64 w-64 rounded-full bg-sky-300/10 blur-3xl motion-safe:animate-pulseSoft" />
+          <div className="pointer-events-none absolute bottom-[-16%] left-[12%] h-56 w-56 rounded-full bg-orange-300/10 blur-3xl" />
+          <div className="grid gap-6 lg:grid-cols-[1.12fr_0.88fr] lg:items-start">
+            <div className="max-w-2xl">
+              <p className="eyebrow-copy text-white/48">Mock interview practice</p>
+              <h1 className="mt-4 font-display text-4xl font-semibold tracking-[-0.06em] text-white md:text-6xl">
+                Interviews that adapt, remember, and coach.
               </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-white/68">
-                Vantage runs psychologically safe AI interviews for internships and early-career roles,
-                adapts follow-ups in real time, stores layered memory, and gives structured rubric feedback
-                with mentor visibility when a session needs review.
+              <p className="mt-5 max-w-xl text-base leading-7 text-white/68 md:text-lg">
+                Practice for internships and early roles with adaptive follow-ups, structured scoring,
+                and optional mentor review without wading through static question banks.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button asChild>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Button asChild className="transition-transform duration-200 hover:-translate-y-0.5">
                   <Link href="/setup">
-                    Start Mock Interview
+                    Start interview
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Link>
                 </Button>
                 <Button asChild variant="secondary">
-                  <Link href="#how-it-works">See How It Works</Link>
+                  <Link href="#product">How it works</Link>
                 </Button>
               </div>
             </div>
 
-            <div className="grid gap-4">
-              {landingStats.map((stat, index) => (
-                <Reveal key={stat.label} delay={0.08 * index}>
-                  <Card className="rounded-[30px] p-5">
-                    <p className="text-sm text-white/50">{stat.label}</p>
-                    <div className="mt-3 flex items-end justify-between gap-3">
-                      <p className="text-5xl font-semibold tracking-[-0.06em] text-white">
-                        {stat.value}
-                      </p>
-                      <p className="max-w-[12rem] text-right text-sm text-white/55">{stat.hint}</p>
+            <div className="grid gap-3">
+              <Card className="rounded-[34px] border border-white/12 bg-[linear-gradient(155deg,rgba(10,20,34,0.9),rgba(11,24,40,0.66))] p-5">
+                <p className="eyebrow-copy text-white/45">How it works</p>
+                <div className="mt-4 grid gap-4">
+                  {workflowSteps.map((item) => (
+                    <div
+                      key={item.title}
+                      className="grid gap-3 border-b border-white/10 pb-4 last:border-b-0 last:pb-0 md:grid-cols-[auto_1fr]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-mist">
+                          <item.icon className="h-5 w-5" />
+                        </span>
+                        <span className="text-xs uppercase tracking-[0.2em] text-white/36">{item.step}</span>
+                      </div>
+                      <div>
+                        <p className="text-base font-semibold text-white">{item.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-white/60">{item.copy}</p>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              </Card>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {landingStats.map((stat) => (
+                  <Card
+                    key={stat.label}
+                    className="rounded-[22px] border border-white/10 bg-black/15 p-4"
+                  >
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/42">{stat.label}</p>
+                    <p className="mt-3 text-3xl font-semibold tracking-[-0.06em] text-white">{stat.value}</p>
+                    <p className="mt-2 text-sm leading-6 text-white/56">{stat.hint}</p>
                   </Card>
-                </Reveal>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </section>
       </Reveal>
 
-      <div className="mt-8 grid gap-8" id="how-it-works">
-        <Reveal delay={0.05}>
+      <div className="mt-6" id="product">
+        <Reveal delay={0.04} y={20}>
           <SectionShell
-            eyebrow="Product explanation"
-            title="Students get a calmer, smarter practice loop than static question banks."
-            description="The system collects role and context up front, runs an adaptive mock interview, stores transcript and evaluation artifacts, and uses historical weaknesses to make future sessions more useful."
+            eyebrow="How it works"
+            title="Built to stay focused."
+            description="The flow is short: set the role, answer adaptive questions, then review structured feedback."
           >
             <div className="grid gap-4 md:grid-cols-3">
               {[
                 {
                   icon: Sparkles,
-                  title: "Dynamic interviews",
-                  copy: "Each follow-up reacts to answer content, confidence, mode, and target role."
+                  title: "Adaptive questions",
+                  copy: "Follow-ups react to your answers instead of following a static list."
                 },
                 {
                   icon: WandSparkles,
-                  title: "Layered memory",
-                  copy: "Current session context, full transcripts, and long-term skill signals stay available for future recall."
+                  title: "Memory that compounds",
+                  copy: "Saved history helps shape what the next session should emphasize."
                 },
                 {
                   icon: ShieldCheck,
-                  title: "Safe by design",
-                  copy: "Guardrails screen questions and feedback for inappropriate, biased, hostile, or demoralizing content."
+                  title: "Safe by default",
+                  copy: "Guardrails keep tone and feedback constructive."
                 }
               ].map((item) => (
-                <Card key={item.title} className="rounded-[28px] p-5">
-                  <item.icon className="h-8 w-8 text-mist" />
-                  <h3 className="mt-5 text-2xl font-semibold tracking-[-0.04em] text-white">
+                <div
+                  key={item.title}
+                  className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5"
+                >
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-mist">
+                    <item.icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-4 text-base font-semibold tracking-[-0.03em] text-white">
                     {item.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-7 text-white/64">{item.copy}</p>
-                </Card>
+                  <p className="mt-2 text-sm leading-6 text-white/60">{item.copy}</p>
+                </div>
               ))}
-            </div>
-          </SectionShell>
-        </Reveal>
-
-        <Reveal delay={0.08}>
-          <SectionShell
-            eyebrow="Interview modes"
-            title="Three modes, one consistent coaching system."
-            description="Every mode preserves the same polished student experience while changing the questioning logic and evaluation emphasis."
-          >
-            <div className="grid gap-4 md:grid-cols-3">
-              {INTERVIEW_MODES.map((item) => (
-                <ModeSelectionCard
-                  key={item.value}
-                  label={item.label}
-                  description={item.description}
-                />
-              ))}
-            </div>
-          </SectionShell>
-        </Reveal>
-
-        <Reveal delay={0.12}>
-          <SectionShell
-            eyebrow="Memory and personalization"
-            title="Personalization is visible, not hidden."
-            description="Short-term memory keeps the live flow coherent. Episodic memory stores every transcript and scorecard. Long-term memory tracks recurring strengths, recurring weak skills, and next-session recommendations."
-          >
-            <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-              <Card className="rounded-[30px] p-6">
-                <p className="text-sm text-white/50">What the student sees</p>
-                <ul className="mt-4 grid gap-3 text-sm leading-7 text-white/66">
-                  <li>Personalization indicator in setup and live interview</li>
-                  <li>Historical weaknesses surfaced on insights pages</li>
-                  <li>Next-session recommendations tied to prior evaluations</li>
-                </ul>
-              </Card>
-              <Card className="rounded-[30px] p-6">
-                <p className="text-sm text-white/50">What the system stores</p>
-                <ul className="mt-4 grid gap-3 text-sm leading-7 text-white/66">
-                  <li>Session metadata, transcript messages, and evaluations</li>
-                  <li>Skill signals such as strengths, weaknesses, and trends</li>
-                  <li>Flag events and mentor interventions</li>
-                </ul>
-              </Card>
-            </div>
-          </SectionShell>
-        </Reveal>
-
-        <Reveal delay={0.16}>
-          <SectionShell
-            eyebrow="Feedback and coaching"
-            title="Structured rubric feedback makes the session actionable."
-            description="Every answer can be graded for clarity, structure, relevance, and soft skills, with explicit STAR analysis, growth tips, and optional evaluator self-critique."
-          >
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {[
-                "Clarity",
-                "Structure / STAR",
-                "Relevance",
-                "Soft skills demonstration"
-              ].map((item) => (
-                <Card key={item} className="rounded-[28px] p-5">
-                  <p className="text-lg font-semibold tracking-[-0.04em] text-white">{item}</p>
-                  <p className="mt-3 text-sm leading-6 text-white/64">
-                    Visible on the results page with actionable improvement guidance.
-                  </p>
-                </Card>
-              ))}
-            </div>
-          </SectionShell>
-        </Reveal>
-
-        <Reveal delay={0.2}>
-          <SectionShell
-            eyebrow="Safety and mentor support"
-            title="Mentor review stays lightweight but real."
-            description="Flagged sessions flow into a mentor dashboard with queue review, transcript inspection, supplemental feedback, and live takeover controls."
-          >
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card className="rounded-[30px] p-6">
-                <p className="text-2xl font-semibold tracking-[-0.04em] text-white">
-                  Constructive student-facing behavior
-                </p>
-                <p className="mt-4 text-sm leading-7 text-white/64">
-                  Even when a guardrail triggers, the student experience stays calm and supportive.
-                  The event is preserved for mentor review without exposing harmful phrasing back to the student.
-                </p>
-              </Card>
-              <Card className="rounded-[30px] p-6">
-                <p className="text-2xl font-semibold tracking-[-0.04em] text-white">
-                  Actionable mentor workflows
-                </p>
-                <p className="mt-4 text-sm leading-7 text-white/64">
-                  Review flags, inspect transcript and rubric output, add notes, or pause a live session
-                  with a mentor takeover message.
-                </p>
-              </Card>
-            </div>
-          </SectionShell>
-        </Reveal>
-
-        <Reveal delay={0.24}>
-          <SectionShell
-            eyebrow="Call to action"
-            title="Launch the MVP flow and demo the full product loop."
-            description="Start from setup, run a live interview, inspect results, browse history and insights, then switch into mentor review."
-          >
-            <div className="flex flex-wrap gap-3">
-              <Button asChild>
-                <Link href="/setup">Start Mock Interview</Link>
-              </Button>
-              <Button asChild variant="secondary">
-                <Link href="/mentor">Open Mentor Dashboard</Link>
-              </Button>
             </div>
           </SectionShell>
         </Reveal>

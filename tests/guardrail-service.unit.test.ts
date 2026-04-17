@@ -44,6 +44,7 @@ function makeDb(): MockInterviewDB {
     skillSignals: [],
     flags: [],
     mentorInterventions: [],
+    mentorDirectMessages: [],
     agentSessionStates: [
       {
         session_id: "sess-guardrail",

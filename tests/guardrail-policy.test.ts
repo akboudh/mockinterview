@@ -15,6 +15,23 @@ describe("guardrail policy loader", () => {
     clearGuardrailPolicyCache();
   });
 
+  it("flags the dev guardrail trigger phrase in the repo policy", async () => {
+    process.env.GUARDRAIL_POLICY_PATH = path.join(process.cwd(), "guardrails", "policy.yaml");
+    clearGuardrailPolicyCache();
+
+    const findings = await inspectForGuardrails({ text: "guardrail-test", source: "student" });
+    expect(findings.length).toBeGreaterThan(0);
+    expect(findings.some((f) => f.policy_id === "dev-guardrail-trigger")).toBe(true);
+  });
+
+  it("flags self-harm phrasing like 'i wanna kill myself' in the repo policy", async () => {
+    process.env.GUARDRAIL_POLICY_PATH = path.join(process.cwd(), "guardrails", "policy.yaml");
+    clearGuardrailPolicyCache();
+
+    const findings = await inspectForGuardrails({ text: "i wanna kill myself", source: "student" });
+    expect(findings.some((f) => f.policy_id === "self-harm-or-violence")).toBe(true);
+  });
+
   it("loads runtime policy from YAML and normalizes defaults", () => {
     const tempDir = mkdtempSync(path.join(os.tmpdir(), "guardrail-policy-"));
     const policyFile = path.join(tempDir, "policy.yaml");
@@ -48,7 +65,7 @@ fallback_behavior:
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("changes runtime findings when the loaded policy changes", () => {
+  it("changes runtime findings when the loaded policy changes", async () => {
     const restrictivePolicy = normalizeGuardrailPolicy({
       version: 1,
       policies: [
@@ -84,12 +101,24 @@ fallback_behavior:
       }
     });
 
-    const restrictiveFindings = inspectForGuardrails("This answer sounds hopeless.", {
-      loadPolicy: () => restrictivePolicy
-    });
-    const relaxedFindings = inspectForGuardrails("This answer sounds hopeless.", {
-      loadPolicy: () => relaxedPolicy
-    });
+    const restrictiveFindings = await inspectForGuardrails(
+      {
+        text: "This answer sounds hopeless.",
+        source: "student"
+      },
+      {
+        loadPolicy: () => restrictivePolicy
+      }
+    );
+    const relaxedFindings = await inspectForGuardrails(
+      {
+        text: "This answer sounds hopeless.",
+        source: "student"
+      },
+      {
+        loadPolicy: () => relaxedPolicy
+      }
+    );
 
     expect(restrictiveFindings).toHaveLength(1);
     expect(restrictiveFindings[0]?.flag_category).toBe("demoralizing_feedback");

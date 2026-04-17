@@ -8,6 +8,7 @@ import * as provider from "@/lib/ai/provider";
 import {
   askQuestion,
   computeNextQuestion,
+  mergePersistAskQuestionIntoDb,
   type AskQuestionDeps,
   type PreparedAskQuestionInput
 } from "@/lib/services/orchestrator-service";
@@ -155,6 +156,7 @@ function makeDb(params: {
     skillSignals: [],
     flags: [],
     mentorInterventions: [],
+    mentorDirectMessages: [],
     agentSessionStates: params.agentSessionStates ?? [],
     conversationSummaries: []
   };
@@ -169,12 +171,17 @@ function createAskDeps(
 } {
   let currentDb = initialDb;
 
+  const updateDbMock = vi.fn(async (updater: (db: MockInterviewDB) => MockInterviewDB | Promise<MockInterviewDB>) => {
+    currentDb = await updater(currentDb);
+    return currentDb;
+  });
+
   const deps: AskQuestionDeps = {
     readDb: vi.fn(async () => currentDb),
-    updateDb: vi.fn(async (updater) => {
-      currentDb = await updater(currentDb);
-      return currentDb;
-    }),
+    updateDb: updateDbMock,
+    persistAskQuestionWrite: async (result) => {
+      await updateDbMock((db) => mergePersistAskQuestionIntoDb(db, result));
+    },
     recallContext: vi.fn(async () => ({
       context_items: [],
       weak_skills: []

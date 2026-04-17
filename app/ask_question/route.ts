@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { authJsonError, requireApiUser } from "@/lib/auth";
-import { logEvent } from "@/lib/logging";
+import { logEvent, requestIdFromRequest } from "@/lib/logging";
 import { askQuestion } from "@/lib/services/orchestrator-service";
 import { assertSessionOwnership } from "@/lib/services/session-service";
 
@@ -25,6 +25,7 @@ const askQuestionContextSchema = z.object({
   mode: z.enum(["behavioral", "technical", "case"]),
   target_role: z.string().min(1),
   focus_area: z.string().nullable().optional(),
+  question_limit: z.number().int().min(1).max(20).nullable().optional(),
   personalization_enabled: z.boolean(),
   self_critique_enabled: z.boolean(),
   resume_text: z.string().nullable().optional(),
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
     logEvent(
       "orchestrator.question.failed",
       {
+        request_id: requestIdFromRequest(request),
         reason: error instanceof Error ? error.message : "unknown"
       },
       "warn"

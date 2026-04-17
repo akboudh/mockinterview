@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { authJsonError, requireApiUser } from "@/lib/auth";
-import { logEvent } from "@/lib/logging";
+import { logEvent, requestIdFromRequest } from "@/lib/logging";
 import { startSession } from "@/lib/services/session-service";
 
 const startSessionSchema = z.object({
@@ -11,6 +11,8 @@ const startSessionSchema = z.object({
   mode: z.enum(["behavioral", "technical", "case"]),
   focus_area: z.string().nullable().optional(),
   confidence_self_rating: z.number().min(1).max(5).nullable().optional(),
+  question_limit: z.number().int().min(1).max(20).nullable().optional(),
+  question_time_limit_seconds: z.number().int().min(15).max(600).nullable().optional(),
   personalization_enabled: z.boolean(),
   self_critique_enabled: z.boolean(),
   notes: z.string().nullable().optional(),
@@ -30,6 +32,7 @@ export async function POST(request: Request) {
     logEvent(
       "session.start.failed",
       {
+        request_id: requestIdFromRequest(request),
         reason: error instanceof Error ? error.message : "unknown"
       },
       "warn"

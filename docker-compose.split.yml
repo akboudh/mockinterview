@@ -1,0 +1,52 @@
+# Two containers from the same image: student UI (3000) and mentor UI (3001).
+# Share one SQLite file via a named volume so both see the same data.
+# Heavy concurrent writes from two processes can stress SQLite; use Postgres or a single app instance for production.
+#
+#   docker compose -f docker-compose.split.yml up --build
+#
+# Browsers on the host should set NEXT_PUBLIC_MENTOR_APP_URL=http://localhost:3001
+# in .env when testing the student app so /mentor links redirect to the mentor server.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  student-web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      APP_SURFACE: student
+      PORT: 3000
+      HOST: 0.0.0.0
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      # Browser-visible mentor origin (runtime; no rebuild needed)
+      MENTOR_APP_URL: http://localhost:3001
+      NEXT_PUBLIC_MENTOR_APP_URL: http://localhost:3001
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    volumes:
+      - mockinterview-data:/app/data
+
+  mentor-web:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      APP_SURFACE: mentor
+      PORT: 3001
+      HOST: 0.0.0.0
+      NEXT_PUBLIC_APP_URL: http://localhost:3001
+      STUDENT_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_STUDENT_APP_URL: http://localhost:3000
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - redis
+    volumes:
+      - mockinterview-data:/app/data
+
+volumes:
+  mockinterview-data:

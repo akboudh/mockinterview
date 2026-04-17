@@ -6,16 +6,23 @@
     "node": ">=20 <25"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:student": "APP_SURFACE=student HOST=student.localhost PORT=3000 node scripts/dev.mjs",
+    "dev:mentor": "APP_SURFACE=mentor HOST=mentor.localhost PORT=3001 node scripts/dev.mjs",
+    "dev:both": "concurrently -k -n student,mentor -c cyan,magenta \"npm run dev:student\" \"npm run dev:mentor\"",
     "build": "next build",
     "start": "next start",
+    "start:student": "APP_SURFACE=student HOST=student.localhost next start -p 3000",
+    "start:mentor": "APP_SURFACE=mentor HOST=mentor.localhost next start -p 3001",
     "smoke:prod": "bash scripts/smoke-production.sh",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "tsx scripts/generate-synthetic-data.ts",
     "db:import": "tsx scripts/import-json-to-sqlite.ts",
-    "db:clear": "tsx scripts/clear-local-db.ts"
+    "db:clear": "tsx scripts/clear-local-db.ts",
+    "db:clean-roles": "tsx scripts/clean-user-roles.ts",
+    "db:wipe": "tsx scripts/wipe-local-databases.ts"
   },
   "dependencies": {
     "@langchain/core": "^0.3.0",
@@ -26,6 +33,7 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.0.0",
+    "ioredis": "^5.10.1",
     "langchain": "^0.3.0",
     "lucide-react": "^0.511.0",
     "next": "^15.0.0",
@@ -39,11 +47,13 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/ioredis": "^4.28.10",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.0.0",
     "postcss": "^8.4.49",

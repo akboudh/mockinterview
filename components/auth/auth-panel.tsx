@@ -77,15 +77,13 @@ export function AuthPanel({
         <p className="text-xs uppercase tracking-[0.28em] text-white/45">
           {mentorContext ? "Mentor access" : "Secure access"}
         </p>
-        <h1 className="text-3xl font-semibold tracking-[-0.04em] text-white">
-          {mentorContext
-            ? "Sign in to review flagged sessions and intervene live."
-            : "Sign in to save interview history and personalization."}
+        <h1 className="font-display text-3xl font-semibold tracking-[-0.04em] text-white">
+          {mentorContext ? "Mentor sign-in" : "Sign in"}
         </h1>
-        <p className="text-white/62">
+        <p className="text-sm text-white/62">
           {mentorContext
-            ? "Mentor access uses the same local auth system, but only mentor-approved accounts can open the dashboard or trigger takeovers."
-            : "Accounts are stored locally for now, passwords are hashed, and session access uses a secure server-side cookie."}
+            ? "Review flagged sessions and use live takeover when needed."
+            : "Passwords are hashed; your sessions and scores stay tied to this account."}
         </p>
       </div>
 
@@ -94,7 +92,7 @@ export function AuthPanel({
           <button
             key={value}
             type="button"
-            className={`rounded-full px-4 py-2.5 text-sm font-medium whitespace-nowrap transition ${
+            className={`rounded-full px-4 py-2.5 text-sm font-medium whitespace-nowrap transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mist/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a1522] ${
               mode === value
                 ? "border border-sky-200/18 bg-[linear-gradient(135deg,rgba(103,176,221,0.2)_0%,rgba(39,83,122,0.72)_100%)] text-white shadow-[0_10px_28px_rgba(8,15,28,0.28)]"
                 : "text-white/70 hover:bg-white/6 hover:text-white"
@@ -119,7 +117,7 @@ export function AuthPanel({
             <span className="text-sm text-white/74">Display name</span>
             <input
               className="field"
-              placeholder={mentorContext ? "Mentor name" : "Akshat"}
+              placeholder={mentorContext ? "Mentor name" : "Your name"}
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
             />
@@ -187,7 +185,7 @@ export function AuthPanel({
                 : "Create a mentor account with an approved mentor email or the shared mentor access code."
               : mode === "login"
                 ? "Use the same account to keep your history, resume context, and skill signals tied to you."
-                : "A local account is enough for development now. We can move this to hosted auth later."}
+                : "Create an account to keep your history, resume context, and skill signals tied to you."}
           </p>
           <Button type="submit" disabled={submitting} className="self-start sm:self-auto">
             {submitting
