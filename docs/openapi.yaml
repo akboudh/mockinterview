@@ -233,18 +233,6 @@ paths:
       responses:
         '200':
           description: Mentor intervention recorded
-  /mentor/takeover:
-    post:
-      summary: Record a mentor takeover as a mentor/admin
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/MentorActionRequest'
-      responses:
-        '200':
-          description: Takeover recorded
 components:
   schemas:
     StartSessionRequest:
@@ -395,8 +383,6 @@ components:
           items:
             $ref: '#/components/schemas/RecalledContextItem'
         flagged:
-          type: boolean
-        mentor_takeover_active:
           type: boolean
     OrchestratorTranscriptItem:
       type: object
@@ -811,7 +797,6 @@ components:
             - session.flag.created
             - session.flag.reviewed
             - session.mentor.feedback
-            - session.mentor.takeover
         session_id:
           type:
             - string
@@ -851,7 +836,6 @@ components:
         - turn_count
         - turn_type
         - flagged
-        - mentor_takeover_active
       properties:
         current_phase:
           $ref: '#/components/schemas/AgentPhase'
@@ -860,8 +844,6 @@ components:
         turn_type:
           $ref: '#/components/schemas/AgentTurnType'
         flagged:
-          type: boolean
-        mentor_takeover_active:
           type: boolean
         conversation_summary:
           type:
