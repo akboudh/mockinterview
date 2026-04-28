@@ -1,69 +1,59 @@
 # Vantage Mock Interview MVP
 
-Vantage is a local-first mock interview platform for students. It includes a guided setup flow, adaptive live interview loop, rubric-based evaluation, memory recall across sessions, mentor review tools, and a deterministic fallback mode so the app still runs without live LLM keys.
+Local-first mock interview platform with a guided interview loop, rubric-based evaluation, memory-driven personalization, guardrails, and mentor review + per-session feedback.
 
-## What the app does
+## Features (current)
 
-- student sign-up, login, setup, interview, results, history, and insights flows
-- AI interview runtime with `Analyzer -> Orchestrator -> Speaker` separation
-- rubric-based evaluation with STAR analysis and optional self-critique
-- short-term, episodic, and long-term memory for personalization
-- LangChain-backed memory abstractions for transcript buffering, embeddings, and semantic retrieval
-- guardrails for unsafe or hostile content with optional external-provider checks and local YAML fallback
-- mentor dashboard, flag review, and per-session feedback (students see feedback in session results/history)
-- local SQLite persistence with cookie-based auth
+- **Student app**
+  - signup/login/logout
+  - interview setup (`/setup`) for role/mode/focus + resume ingestion
+  - live interview loop (`/interview/[sessionId]`) with phases and optional question TTS
+  - rubric evaluation + STAR breakdown + growth tips (`/results/[sessionId]`)
+  - history (`/history`) + insights (`/insights`)
+  - async mentor messaging thread (`/student/mentor`)
+- **Mentor app**
+  - mentor login + dashboard (`/mentor`) with student directory + flag queue
+  - session transcript review + flag review workflow
+  - **supplemental per-session feedback**; students see it in results/history
+- **Safety**
+  - local YAML guardrail policy with a provider adapter (optional external provider + local fallback)
+  - mentor-visible flags and realtime updates
+- **Local-first infra**
+  - SQLite persistence for sessions, transcript, evaluations, flags, mentor feedback
+  - SSE event stream for realtime UI updates
+  - optional Redis Pub/Sub for multi-process split dev (SQLite fallback bridge when Redis is absent)
 
-## Product workflow
+## How it’s built (high level)
 
-1. A student signs up or logs in.
-2. On `/setup`, they choose a target role, interview mode, focus area, notes, and optionally upload a resume.
-3. `POST /start_session` creates the session, initializes runtime state, and recalls prior context if personalization is enabled.
-4. The live interview page calls `POST /ask_question` to generate the first question.
-5. Each student answer goes through `POST /evaluate_response`, which saves the answer, runs guardrails, evaluates it against the rubric, and writes memory events.
-6. The app recalls fresh context and calls `POST /ask_question` again for the next turn.
-7. When the interview ends, the session moves to `session_feedback`, and the user can review `/results/[sessionId]`, `/history`, and `/insights`.
-8. Mentors can log in separately, review flags, and leave per-session feedback from `/mentor`. Students see that feedback in `/results/[sessionId]` and `/history`.
+- **Next.js App Router** serves both pages and API routes.
+- **Interview runtime** is a phase-based flow (Analyzer → Orchestrator → Speaker).
+- **Memory** is treated as 3 layers:
+  - **short-term**: recent transcript/runtime state (within the current session)
+  - **episodic**: per-session records (evaluations, flags, summaries)
+  - **long-term**: embeddings-backed retrieval across sessions
+- **Guardrails** run during evaluation to flag unsafe content and notify the mentor dashboard.
+- **Mentor feedback** is stored per session and shown back to the student in results/history.
 
-For the full architecture walkthrough, see [`docs/app-workflow.md`](./docs/app-workflow.md).
+For a deeper walkthrough, see [`docs/app-workflow.md`](./docs/app-workflow.md).
 
-## Architecture snapshot
-
-- the interview orchestrator stays on `LangGraph`; the Analyzer, phase logic, and Speaker runtime are unchanged by the infrastructure work in this repo
-- the memory layer is where `LangChain` abstractions now live: embeddings, retriever interfaces, and short-term transcript buffering are wrapped behind the local memory service
-- guardrails run through a provider adapter; local YAML rules remain the default, and an external guardrail endpoint can be configured without removing the local fallback
-- **Deployment shape**: one `Next.js` process can serve everything (student + mentor + APIs + SSE). Optionally you run **two** processes with `APP_SURFACE=student` and `APP_SURFACE=mentor` (see [Split student / mentor dev](#split-student--mentor-dev-optional)) for separate origins and clearer role separation in development or Docker.
-
-## Stack
-
-- `Next.js` App Router
-- `React` + `Tailwind CSS`
-- `Framer Motion`
-- `LangGraph` and `LangChain`
-- OpenAI and Gemini provider adapters
-- deterministic fallback provider when no API key is configured
-- `better-sqlite3` + `Drizzle ORM`
-
-## Run this on another PC
+## Quickstart (run on your own desktop)
 
 ### Prerequisites
 
 - Node.js `22` recommended (`package.json` supports `>=20 <25`, `.nvmrc` is `22`)
 - npm
 - Git
-- optional: OpenAI or Gemini API key if you want live model responses
+- optional: OpenAI or Gemini API key if you want live model output (otherwise deterministic fallback works)
 
-### 1. Clone and install
+### 1) Install
 
 ```bash
 git clone <your-repo-url>
 cd mockinterview
-nvm use 22
 npm install
 ```
 
-If the other developer does not use `nvm`, installing Node 22 manually is fine.
-
-### 2. Create local env config
+### 2) Configure env
 
 macOS/Linux:
 
@@ -77,113 +67,84 @@ Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-You can use `.env.local` instead; Next.js loads both (`.env.local` overrides). Default values in `.env.example` are safe for onboarding:
+Notes:
+- Next.js also loads `.env.local` (overrides). Use either.
+- Defaults in `.env.example` are safe: `LLM_PROVIDER=deterministic`, blank API keys, SQLite at `data/mockinterview.sqlite`.
 
-- `LLM_PROVIDER=deterministic`
-- API keys can stay blank
-- SQLite writes to `data/mockinterview.sqlite`
-
-If someone wants live model output instead of deterministic fallback:
-
-- set `LLM_PROVIDER=openai` and add `OPENAI_API_KEY`
-- or set `LLM_PROVIDER=gemini` and add `GOOGLE_API_KEY`
-
-### 3. Start the app
-
-**Single integrated dev server** (default):
+### 3) Run (single integrated app)
 
 ```bash
 npm run dev
 ```
 
-The launcher prefers port `3000` and, if that port is busy, picks the next free port (see `scripts/dev.mjs`).
+Open the printed URL (usually `http://localhost:3000`). The dev launcher will use `3000` if free, otherwise it picks the next available port (see `scripts/dev.mjs`).
 
-On first run, the app creates the SQLite database if it does not exist.
+### 4) Use the app
 
-### 3a. Mentor dashboard on a separate origin (split student / mentor)
+- student login: `/login`
+- start an interview: `/setup`
+- results: `/results/[sessionId]`
+- history: `/history`
+- insights: `/insights`
+- mentor login/dashboard: `/mentor/login` → `/mentor`
 
-The codebase can run as **two apps**: students on one port, mentors on another. The **mentor surface** only serves mentor routes (`/mentor`, `/flags`, auth, SSE, health); visiting `/` goes to `/mentor`. The **student surface** sends any `/mentor/*` request to `MENTOR_APP_URL` so the dashboard always lives on the mentor origin.
+## Split student / mentor dev (optional)
 
-**Start Redis** (recommended for fastest live updates across two Node processes):
+You can run two Next.js processes:
+- **student** surface on `http://student.localhost:3000`
+- **mentor** surface on `http://mentor.localhost:3001`
+
+This is useful for cookie isolation (hostnames, not ports) and “separate app” behavior in development/Docker.
+
+### Recommended: run Redis
 
 ```bash
 docker run --rm -p 6379:6379 redis:7-alpine
 ```
 
-**One terminal (both servers):**
+### Start both
 
 ```bash
 npm run dev:both
 ```
 
-**Or two terminals:**
+Or separately:
 
 ```bash
-npm run dev:student   # http://student.localhost:3000 — student app
-npm run dev:mentor      # http://mentor.localhost:3001 — mentor app (dashboard at /mentor)
+npm run dev:student
+npm run dev:mentor
 ```
 
-**Env (in `.env`):** point each side at the other so login links and redirects work:
+### Required env (in `.env`)
 
 - `MENTOR_APP_URL=http://mentor.localhost:3001`
 - `STUDENT_APP_URL=http://student.localhost:3000`
 
-**Important (cookie isolation):** cookies are scoped to hostnames, not ports. To stay logged into both apps at once, the split dev scripts bind to **different hostnames**:
+If `REDIS_URL` is not set, split dev still works using the SQLite realtime bridge fallback (slightly higher latency).
 
-- student app: `http://student.localhost:3000`
-- mentor app: `http://mentor.localhost:3001`
-
-Do **not** put `APP_SURFACE` in `.env` for local split dev—the `dev:student` / `dev:mentor` / `dev:both` scripts set it per process. Use a **single** combined app only when you run plain `npm run dev` (no `APP_SURFACE`; student + mentor both exist on the same origin).
-
-### 3b. Run the integrated app in Docker
+## Docker (integrated app)
 
 ```bash
 docker build -t vantage-mockinterview .
 docker run --rm -p 3000:3000 --env-file .env vantage-mockinterview
 ```
 
-For split containers, see `docker-compose.split.yml` and the same `APP_SURFACE` / URL variables as local split dev.
+For split containers, see `docker-compose.split.yml`.
 
-### 4. Use the app
+## Commands
 
-- create a student account from `/login`
-- start an interview from `/setup`
-- review results in `/results/[sessionId]`
-- browse prior sessions in `/history`
-- check trends in `/insights`
-
-**Mentor access**: roles are stored on the account in the database (not inferred from env at every request). `MENTOR_EMAILS` / `MENTOR_SIGNUP_CODE` only control **who may create** a mentor account (`/mentor/login` signup). Use `ADMIN_EMAILS` similarly for admin creation paths where applicable.
-
-## Local development workflow
-
-Typical developer loop:
-
-1. `npm install`
-2. copy `.env.example` to `.env` (or `.env.local`)
-3. run `npm run dev`
-4. make changes
-5. run `npm test`
-6. run `npm run build` before pushing larger changes
-7. optionally run `npm run smoke:prod` for a production-style validation pass
-
-The smoke script does a fresh build, boots `next start`, waits for `/login`, and exercises the main authenticated API flow through [`scripts/sample-curl.sh`](./scripts/sample-curl.sh).
-
-## Useful scripts
-
-- `npm run dev` - start the Next.js dev server (port 3000 or next free)
-- `npm run dev:student` / `npm run dev:mentor` - split surfaces on `student.localhost:3000` / `mentor.localhost:3001`
+- `npm run dev` - integrated dev server
+- `npm run dev:both` - split student+mentor dev
 - `npm run build` - production build
-- `npm run start` - run the production server after building
-- `npm test` - run the Vitest suite
-- `npm run test:watch` - watch mode for tests
-- `npm run db:import` - import legacy seed data from [`data/mock-db.json`](./data/mock-db.json)
-- `npm run db:clear` - truncate application tables in the local SQLite DB (keeps schema)
-- `npm run db:clean-roles` - reset user roles in the local DB (see script for behavior)
-- `npm run db:wipe` - delete local SQLite files and legacy `data/mock-db.json` (full reset)
+- `npm run start` - run after build
+- `npm test` - Vitest suite
 - `npm run seed` - generate synthetic data
-- `npm run smoke:prod` - production smoke check
+- `npm run db:clear` - truncate local DB tables (keeps schema)
+- `npm run db:wipe` - delete local DB files (full reset)
+- `npm run smoke:prod` - production-style smoke test
+- `npm run ppt:build` - build the PPT template (`slides/build_mockinterview_ppt.mjs`)
 
-## Important environment variables
+## Key environment variables
 
 | Variable | Purpose |
 | --- | --- |
@@ -191,36 +152,38 @@ The smoke script does a fresh build, boots `next start`, waits for `/login`, and
 | `LLM_PROVIDER` | `deterministic`, `openai`, or `gemini`. |
 | `OPENAI_API_KEY` | Required only when using OpenAI. |
 | `GOOGLE_API_KEY` | Required only when using Gemini. |
-| `OPENAI_MODEL` | OpenAI model name. |
-| `GEMINI_MODEL` | Gemini model name. |
-| `NEXT_PUBLIC_APP_URL` | Optional base app URL. Locally, match the port your dev server actually uses. |
-| `APP_SURFACE` | `student` or `mentor` when running split servers; omit for combined app. |
-| `MENTOR_APP_URL` / `STUDENT_APP_URL` | Origins for cross-app login links and student-surface redirects away from `/mentor/*`. |
-| `MENTOR_EMAILS` | Optional comma-separated list: those emails may **create** a mentor account (with signup flow); roles live in the DB after signup. |
-| `ADMIN_EMAILS` | Optional comma-separated list for admin account creation gates where used. |
-| `MENTOR_SIGNUP_CODE` | Shared code for mentor account creation in local/dev use. |
-| `GUARDRAIL_PROVIDER` | `local` by default. Set to `external` to call an external guardrail endpoint first. |
-| `GUARDRAIL_API_URL` | External guardrail endpoint URL used when `GUARDRAIL_PROVIDER=external`. |
-| `GUARDRAIL_API_KEY` | Optional bearer token for the external guardrail endpoint. |
-| `GUARDRAIL_TIMEOUT_MS` | Timeout for the external guardrail request before falling back locally. |
-| `GUARDRAIL_POLICY_PATH` | Optional override for the guardrail policy file. |
-| `REDIS_URL` | Optional; used when configuring shared realtime/event features in deployment. |
-| `AI_REQUEST_TIMEOUT_MS` | Optional cap on upstream AI request duration. |
+| `OPENAI_MODEL` / `GEMINI_MODEL` | Model names. |
+| `APP_SURFACE` | `student` or `mentor` for split processes; omit for integrated app. |
+| `MENTOR_APP_URL` / `STUDENT_APP_URL` | Cross-app origins for split mode. |
+| `REDIS_URL` | Optional Redis Pub/Sub for split mode realtime. |
+| `GUARDRAIL_PROVIDER` | `local` (default) or `external` (with local fallback). |
+| `GUARDRAIL_API_URL` / `GUARDRAIL_API_KEY` | External guardrail provider endpoint + token (optional). |
+| `GUARDRAIL_POLICY_PATH` | Override local guardrail policy path. |
 
-## Portability notes
+## Authentication + roles (important)
 
-- The app works without external AI keys by using deterministic fallbacks.
-- Resume parsing supports `.pdf`, `.txt`, `.md`, and `.html` directly.
-- `.doc`, `.docx`, `.rtf`, and `.rtfd` parsing currently depends on macOS `textutil`, so on Windows/Linux it is safer to use PDF or plain text resumes.
-- `npm run smoke:prod` uses `bash`, `curl`, and `python3`; on Windows, run it in WSL or Git Bash.
+Roles are stored on the user record in the database.
+- `MENTOR_EMAILS`, `ADMIN_EMAILS`, and `MENTOR_SIGNUP_CODE` are used to **gate account creation**, not to re-assign roles on every request.
 
-## API and docs
+## Current limitations
 
-- OpenAPI contract: [`docs/openapi.yaml`](./docs/openapi.yaml)
-- architecture and end-to-end flow: [`docs/app-workflow.md`](./docs/app-workflow.md)
+- **Local SQLite**: great for local-first dev; for high concurrency or multi-host deployment you’d likely move to Postgres.
+- **Realtime without Redis**: split mode works via a SQLite polling bridge, but latency is higher than Redis Pub/Sub.
+- **Resume parsing portability**: `.doc/.docx/.rtf/.rtfd` conversion may rely on platform tools; PDFs/text are the most portable.
+- **Engines**: repo targets Node `>=20 <25` (Node 22 recommended).
+
+## Troubleshooting
+
+- **Ports busy (split dev)**: free `3000/3001` or adjust the scripts; the split launcher fails fast when required ports are taken.
+- **“Unexpected token < in JSON”**: indicates the client got HTML instead of JSON (typically a redirect or error page).
+- **SQLite locked / I/O issues**: stop stray dev servers and retry; the DB layer sets busy timeouts and WAL/DELETE fallback pragmas.
+
+## API + docs
+
+- OpenAPI: [`docs/openapi.yaml`](./docs/openapi.yaml)
+- workflow/architecture: [`docs/app-workflow.md`](./docs/app-workflow.md)
 - deployment notes: [`docs/deployment-readme.md`](./docs/deployment-readme.md)
-- current project status: [`docs/project-status-report.md`](./docs/project-status-report.md)
-- data model summary: [`docs/schema.md`](./docs/schema.md)
-- socket event notes: [`docs/socket-events.md`](./docs/socket-events.md)
-- guardrail policy: [`guardrails/policy.yaml`](./guardrails/policy.yaml)
+- status report: [`docs/project-status-report.md`](./docs/project-status-report.md)
+- schema notes: [`docs/schema.md`](./docs/schema.md)
+- guardrails policy: [`guardrails/policy.yaml`](./guardrails/policy.yaml)
 - rubric library: [`rubrics/interview-rubrics.yaml`](./rubrics/interview-rubrics.yaml)
